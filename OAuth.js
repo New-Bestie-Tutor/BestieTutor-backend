@@ -15,7 +15,7 @@ passport.use(new KakaoStrategy({
 }));
 
 
-// OAuth 라우터 설정
+// OAuth 설정
 app.get('/auth/kakao', passport.authenticate('kakao'));
 app.get('/auth/kakao/callback', passport.authenticate('kakao', {
     successRedirect: '/',
