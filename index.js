@@ -1,6 +1,20 @@
 const express = require('express');
+const cors = require('cors');
+const axios = require('axios');
+const dotenv = require('dotenv');
+dotenv.config();
+
 const app = express();
 const port = 3000;
+
+// CORS 설정
+app.use(cors({
+    origin: 'http://localhost:5173', // 프론트엔드의 포트 번호
+    credentials: true, // 쿠키, 인증 헤더 등을 포함한 요청을 허용
+}));
+
+app.use(express.json());
+app.use(passport.initialize());
 
 app.use(express.json());
 
@@ -8,7 +22,47 @@ app.get('/', (req, res) => {
     res.send('베스티 튜터 백엔드 서버가 실행 중입니다!');
 });
 
+// 카카오 로그인 라우트
+app.get('/user/login/kakao', (req, res) => {
+    const redirectUri = encodeURIComponent(process.env.KAKAO_CALLBACK_URL);
+    const authUrl = `https://kauth.kakao.com/oauth/authorize?client_id=${process.env.KAKAO_CLIENT_ID}&redirect_uri=${redirectUri}&response_type=code`;
+    res.redirect(authUrl);
+});
 
+// 카카오 콜백 라우트
+app.get('/user/login/kakao/callback', async (req, res) => {
+    const { code } = req.query;
+
+    try {
+        const tokenResponse = await axios.post(`https://kauth.kakao.com/oauth/token`, null, {
+            params: {
+                grant_type: 'authorization_code',
+                client_id: process.env.KAKAO_CLIENT_ID,
+                redirect_uri: process.env.KAKAO_CALLBACK_URL,
+                code,
+            },
+        });
+
+        const { access_token } = tokenResponse.data;
+
+        // 사용자 정보 가져오기
+        const userResponse = await axios.get(`https://kapi.kakao.com/v2/user/me`, {
+            headers: {
+                Authorization: `Bearer ${access_token}`,
+            },
+        });
+
+        const userData = userResponse.data;
+
+        // 사용자 정보 처리 (예: 데이터베이스에 저장)
+        console.log(userData);
+
+        res.status(200).json({ message: '로그인 성공', user: userData });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: '로그인 실패' });
+    }
+});
 
 // 서버 시작
 app.listen(port, () => {
@@ -18,25 +72,24 @@ app.listen(port, () => {
 let users = []; // 임시 사용자 저장소
 let loginAttempts = {}; // 로그인 시도 간격 확인
 
-
-
 // 회원가입
 app.post('/user', (req, res) => {
-    const { userId, password, nickname, phone, email, gender, address } = req.body;
+    const { email, password, nickname, phone, gender, address } = req.body;
 
     // 필수 입력값 확인
-    if (!userId || !password || !nickname || !email) {
+    if (!email || !password || !nickname) {
         return res.status(400).json({ message: '필수 입력값이 누락되었습니다.' });
     }
 
-    // 이미 존재하는 사용자 확인
-    const existingUser = users.find(user => user.userId === userId);
+    // 이미 존재하는 사용자 확인 (email로 확인)
+    const existingUser = users.find(user => user.email === email);
     if (existingUser) {
         return res.status(400).json({ message: '이미 존재하는 사용자입니다.' });
     }
 
     // 새 사용자 추가
-    const newUser = { userId, password, nickname, phone, email, gender, address };
+    const userId = users.length; // 인덱스 번호로 사용
+    const newUser = { userId, email, password, nickname, phone, gender, address };
     users.push(newUser);
 
     res.status(201).json({ message: '회원가입 성공' });
@@ -46,26 +99,26 @@ app.post('/user', (req, res) => {
 
 // 로그인
 app.post('/user/login', (req, res) => {
-    const { userId, password } = req.body;
+    const { email, password } = req.body;
     const currentTime = Date.now();
 
     // 필수 입력값 확인
-    if (!userId || !password) {
-        return res.status(400).json({ message: '아이디 또는 비밀번호를 입력하세요.' });
+    if (!email || !password) {
+        return res.status(400).json({ message: '이메일 또는 비밀번호를 입력하세요.' });
     }
 
     // 사용자별 로그인 시도 시간 확인
-    if (loginAttempts[userId] && currentTime - loginAttempts[userId] < 1000) {
+    if (loginAttempts[email] && currentTime - loginAttempts[email] < 1000) {
         return res.status(429).json({ message: '로그인 시도가 너무 빠릅니다. 1초 후 다시 시도하세요.' });
     }
 
     // 로그인 시도 시간 업데이트
-    loginAttempts[userId] = currentTime;
+    loginAttempts[email] = currentTime;
 
-    // 사용자 인증
-    const user = users.find(u => u.userId === userId && u.password === password);
+    // 사용자 인증 (email과 password로 확인)
+    const user = users.find(u => u.email === email && u.password === password);
     if (!user) {
-        return res.status(401).json({ message: '아이디 또는 비밀번호가 잘못되었습니다.' });
+        return res.status(401).json({ message: '이메일 또는 비밀번호가 잘못되었습니다.' });
     }
 
     res.status(200).json({ message: '로그인 성공' });
@@ -92,19 +145,17 @@ app.post('/user/searchID', (req, res) => {
     res.status(200).json({ userId: user.userId });
 });
 
-
-
-//회원 정보 수정
+// 회원 정보 수정
 app.put('/user', (req, res) => {
-    const { userId, password, nickname, phone, email, gender, address } = req.body;
+    const { email, password, nickname, phone, gender, address } = req.body;
 
     // 필수 입력값 확인
-    if (!userId) {
-        return res.status(400).json({ message: '사용자 아이디를 입력하세요.' });
+    if (!email) {
+        return res.status(400).json({ message: '이메일을 입력하세요.' });
     }
 
-    // 사용자 검색
-    const user = users.find(u => u.userId === userId);
+    // 이메일로 사용자 찾기
+    const user = users.find(u => u.email === email);
     if (!user) {
         return res.status(404).json({ message: '사용자를 찾을 수 없습니다.' });
     }
@@ -113,14 +164,11 @@ app.put('/user', (req, res) => {
     if (password) user.password = password;
     if (nickname) user.nickname = nickname;
     if (phone) user.phone = phone;
-    if (email) user.email = email;
     if (gender) user.gender = gender;
     if (address) user.address = address;
 
     res.status(200).json({ message: '회원정보 수정 성공', user });
 });
-
-
 
 // 비밀번호 재설정
 app.post('/user/resetPass', (req, res) => {
@@ -143,19 +191,17 @@ app.post('/user/resetPass', (req, res) => {
     res.status(200).json({ message: '비밀번호 재설정 성공' });
 });
 
-
-
 // 회원 탈퇴
 app.delete('/user', (req, res) => {
-    const { userId } = req.body;
+    const { email } = req.body;
 
     // 필수 입력값 확인
-    if (!userId) {
-        return res.status(400).json({ message: '사용자 아이디를 입력하세요.' });
+    if (!email) {
+        return res.status(400).json({ message: '이메일을 입력하세요.' });
     }
 
-    // 사용자 검색
-    const userIndex = users.findIndex(u => u.userId === userId);
+    // 이메일로 사용자 찾기
+    const userIndex = users.findIndex(u => u.email === email);
     if (userIndex === -1) {
         return res.status(404).json({ message: '사용자를 찾을 수 없습니다.' });
     }
@@ -169,7 +215,6 @@ app.delete('/user', (req, res) => {
 
 
 let notice = []; // 임시 공지사항 저장소
-
 
 
 // 공지사항 추가
@@ -262,6 +307,84 @@ app.get('/notice/:noticeId', (req, res) => {
     res.status(200).json({ status: 'success', data: FoundNotice });
 });
 
+
+
+let events = []; // 임시 이벤트 저장소
+
+// 이벤트 추가
+app.post('/events', (req, res) => {
+    const { title, content } = req.body;
+
+    // 필수 입력값 확인
+    if (!title || !content) {
+        return res.status(400).json({ message: '제목과 내용을 입력하세요.' });
+    }
+
+    // 새로운 이벤트 ID 동적 생성
+    const newEventsId = events.length > 0 ? events[events.length - 1].eventsId + 1 : 1;
+
+
+    const newEvents = {
+        eventsId: newEventsId,
+        title: title,
+        content: content,
+        inputDate: new Date().toISOString(),
+        updateDate: new Date().toISOString()
+    };
+
+    // 이벤트 배열에 추가
+    events.push(newEvents);
+
+    res.status(201).json({ status: 'success', data: newEvents });
+});
+
+
+
+// 이벤트 수정
+app.put('/events/:eventsId', (req, res) => {
+    const { eventsId } = req.params;
+    const { title, content } = req.body;
+
+    if (!title || !content) {
+        return res.status(400).json({ message: '제목과 내용을 모두 입력해야 합니다.' });
+    }
+
+    const eventsIndex = notice.findIndex(n => n.eventsId === parseInt(eventsId));
+    if (eventsIndex === -1) {
+        return res.status(404).json({ message: '해당 공지사항을 찾을 수 없습니다.' });
+    }
+
+    events[eventsIndex] = {
+        ...events[eventsIndex],
+        title,
+        content,
+        updateDate: new Date().toISOString().split('T')[0]
+    };
+
+    res.status(200).json({ status: 'success', data: events[eventsIndex] });
+});
+
+
+
+// 이벤트 삭제
+app.delete('/events/:eventsId', (req, res) => {
+    const { eventsId } = req.params;
+
+    const eventsIndex = events.findIndex(n => n.eventsId === parseInt(eventsId));
+    if (eventsIndex === -1) {
+        return res.status(404).json({ message: '해당 이벤트를 찾을 수 없습니다.' });
+    }
+
+    events.splice(eventsIndex, 1);
+    res.status(200).json({ status: 'success', message: '삭제 완료' });
+});
+
+
+
+// 이벤트 조회
+app.get('/events', (req, res) => {
+    res.status(200).json({ status: 'success', data: events });
+});
 
 
 // 언어 설정
