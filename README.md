@@ -17,7 +17,7 @@ git clone https://github.com/Bestie-Tutor/BestieTutor-backend.git
 cd backend
 cd BestieTutor-backend
 npm install -g nodemon
-npm install express
+yarn add express
 yarn add dotenv
 yarn add axios
 yarn add cors
