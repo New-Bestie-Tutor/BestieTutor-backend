@@ -12,18 +12,18 @@
 
 ## 📦 설정 방법
 
-### 1. .env 파일 준비
-루트 디렉토리에 `.env` 파일을 생성하고 아래 내용을 추가하세요.
-```
-KAKAO_CLIENT_ID={Your Kakao client ID}
-KAKAO_CALLBACK_URL={Your Kakao callback URL}
-```
-
-### 2. 프로젝트 클론
+### 1. 프로젝트 클론
 레포지토리를 클론합니다.
 ```bash
 git clone https://github.com/your-repo/bestie-tutor-backend.git
 cd bestie-tutor-backend
+```
+
+### 2. .env 파일 준비
+루트 디렉토리에 `.env` 파일을 생성하고 아래 내용을 추가하세요.
+```
+KAKAO_CLIENT_ID={Your Kakao client ID}
+KAKAO_CALLBACK_URL={Your Kakao callback URL}
 ```
 
 ### 3. Node.js 패키지 설치
