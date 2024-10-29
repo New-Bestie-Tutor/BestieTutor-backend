@@ -20,6 +20,7 @@ npm install -g nodemon
 npm install express
 yarn add dotenv
 yarn add axios
+yarn add cors
 nodemon index.js
 </pre>
 
