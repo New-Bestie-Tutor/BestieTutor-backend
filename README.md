@@ -15,8 +15,8 @@
 ### 1. 프로젝트 클론
 레포지토리를 클론합니다.
 ```bash
-git clone https://github.com/your-repo/bestie-tutor-backend.git
-cd bestie-tutor-backend
+git clone https://github.com/Bestie-Tutor/BestieTutor-backend.git
+cd BestieTutor-backend
 ```
 
 ### 2. .env 파일 준비
