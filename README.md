@@ -18,6 +18,8 @@ cd backend
 cd BestieTutor-backend
 npm install -g nodemon
 npm install express
+yarn add dotenv
+yarn add axios
 nodemon index.js
 </pre>
 
@@ -25,86 +27,3 @@ nodemon index.js
 
 * 
 * 
-
-#### Postman test
-
-URL: http://localhost:3000
-
-
-Post /user
-{
-  "userId": "testuser",
-  "password": "password123",
-  "nickname": "Tester",
-  "phone": "010-0000-0000",
-  "email": "testuser@gmail.com",
-  "gender": "male",
-  "address": "Seoul"
-}
-
-
-Post /user/login
-{
-  "userId": "testuser",
-  "password": "password123"
-}
-
-
-POST /user/searchID
-{
-  "email": "testuser@gmail.com"
-}
-
-
-Put /user
-{
-    "userId": "testuser",
-    "nickname": "newNickname",
-    "email": "newemail@gmail.com",
-    "phone": "010-1234-5678",
-    "address": "newAddress"
-}
-
-
-POST /user/resetPass
-{
-  "email": "newemail@gmail.com", 
-  "newPassword": "newpassword456"
-}
-
-
-Delete /user
-{
-    "userId": "testuser"
-}
-
-
-POST /notice
-{ 
-  "title": "새 공지사항 제목",
-  "content": "새 공지사항 내용" 
-}
-
-
-PUT /notice/:noticeId(/notice/1)
-{ 
-  "title": "수정된 공지사항 제목",
-  "content": "수정된 공지사항 내용" 
-}
-
-
-DELETE /notice/:noticeId(/notice/1)
-{
-
-}
-
-
-GET /notice 
-{
-
-}
-
-GET /notice/:noticeId(/notice/1)
-{
-
-}
