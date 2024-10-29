@@ -14,9 +14,6 @@ app.use(cors({
 }));
 
 app.use(express.json());
-app.use(passport.initialize());
-
-app.use(express.json());
 
 app.get('/', (req, res) => {
     res.send('베스티 튜터 백엔드 서버가 실행 중입니다!');
