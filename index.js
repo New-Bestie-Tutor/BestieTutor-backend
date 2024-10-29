@@ -1,6 +1,17 @@
 const express = require('express');
+const cors = require('cors');
+const axios = require('axios');
+const dotenv = require('dotenv');
+dotenv.config();
+
 const app = express();
 const port = 3000;
+
+// CORS 설정
+app.use(cors({
+    origin: 'http://localhost:5173', // 프론트엔드의 포트 번호
+    credentials: true, // 쿠키, 인증 헤더 등을 포함한 요청을 허용
+}));
 
 app.use(express.json());
 
@@ -8,7 +19,47 @@ app.get('/', (req, res) => {
     res.send('베스티 튜터 백엔드 서버가 실행 중입니다!');
 });
 
+// 카카오 로그인 라우트
+app.get('/user/login/kakao', (req, res) => {
+    const redirectUri = encodeURIComponent(process.env.KAKAO_CALLBACK_URL);
+    const authUrl = `https://kauth.kakao.com/oauth/authorize?client_id=${process.env.KAKAO_CLIENT_ID}&redirect_uri=${redirectUri}&response_type=code`;
+    res.redirect(authUrl);
+});
 
+// 카카오 콜백 라우트
+app.get('/user/login/kakao/callback', async (req, res) => {
+    const { code } = req.query;
+
+    try {
+        const tokenResponse = await axios.post(`https://kauth.kakao.com/oauth/token`, null, {
+            params: {
+                grant_type: 'authorization_code',
+                client_id: process.env.KAKAO_CLIENT_ID,
+                redirect_uri: process.env.KAKAO_CALLBACK_URL,
+                code,
+            },
+        });
+
+        const { access_token } = tokenResponse.data;
+
+        // 사용자 정보 가져오기
+        const userResponse = await axios.get(`https://kapi.kakao.com/v2/user/me`, {
+            headers: {
+                Authorization: `Bearer ${access_token}`,
+            },
+        });
+
+        const userData = userResponse.data;
+
+        // 사용자 정보 처리 (예: 데이터베이스에 저장)
+        console.log(userData);
+
+        res.status(200).json({ message: '로그인 성공', user: userData });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: '로그인 실패' });
+    }
+});
 
 // 서버 시작
 app.listen(port, () => {
