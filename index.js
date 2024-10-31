@@ -182,7 +182,7 @@ app.post('/user/searchID', (req, res) => {
 });
 
 // 회원 정보 수정
-app.put('/user', (req, res) => {
+app.put('/user', async (req, res) => {
     const { email, password, nickname, phone, gender, address } = req.body;
 
     // 필수 입력값 확인
@@ -190,24 +190,30 @@ app.put('/user', (req, res) => {
         return res.status(400).json({ message: '이메일을 입력하세요.' });
     }
 
-    // 이메일로 사용자 찾기
-    const user = users.find(u => u.email === email);
-    if (!user) {
-        return res.status(404).json({ message: '사용자를 찾을 수 없습니다.' });
+    try {
+        // 이메일로 사용자 찾기
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ message: '사용자를 찾을 수 없습니다.' });
+        }
+
+        // 사용자 정보 수정
+        if (password) user.password = await bcrypt.hash(password, bcryptSalt);
+        if (nickname) user.nickname = nickname;
+        if (phone) user.phone = phone;
+        if (gender) user.gender = gender;
+        if (address) user.address = address;
+
+        await user.save(); // 변경 사항 저장
+        res.status(200).json({ message: '회원정보 수정 성공', user });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: '회원정보 수정 중 오류가 발생했습니다.' });
     }
-
-    // 사용자 정보 수정
-    if (password) user.password = password;
-    if (nickname) user.nickname = nickname;
-    if (phone) user.phone = phone;
-    if (gender) user.gender = gender;
-    if (address) user.address = address;
-
-    res.status(200).json({ message: '회원정보 수정 성공', user });
 });
 
 // 비밀번호 재설정
-app.post('/user/resetPass', (req, res) => {
+app.post('/user/resetPass', async (req, res) => {
     const { email, newPassword } = req.body;
 
     // 필수 입력값 확인
@@ -215,20 +221,26 @@ app.post('/user/resetPass', (req, res) => {
         return res.status(400).json({ message: '이메일과 새 비밀번호를 입력하세요.' });
     }
 
-    // 이메일로 사용자 찾기
-    const user = users.find(u => u.email === email);
-    if (!user) {
-        return res.status(400).json({ message: '해당 이메일을 가진 사용자가 없습니다.' });
+    try {
+        // 이메일로 사용자 찾기
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ message: '해당 이메일을 가진 사용자가 없습니다.' });
+        }
+
+        // 비밀번호 재설정
+        user.password = await bcrypt.hash(newPassword, bcryptSalt);
+        await user.save();
+
+        res.status(200).json({ message: '비밀번호 재설정 성공' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: '비밀번호 재설정 중 오류가 발생했습니다.' });
     }
-
-    // 비밀번호 재설정
-    user.password = newPassword;
-
-    res.status(200).json({ message: '비밀번호 재설정 성공' });
 });
 
 // 회원 탈퇴
-app.delete('/user', (req, res) => {
+app.delete('/user', async (req, res) => {
     const { email } = req.body;
 
     // 필수 입력값 확인
@@ -236,16 +248,18 @@ app.delete('/user', (req, res) => {
         return res.status(400).json({ message: '이메일을 입력하세요.' });
     }
 
-    // 이메일로 사용자 찾기
-    const userIndex = users.findIndex(u => u.email === email);
-    if (userIndex === -1) {
-        return res.status(404).json({ message: '사용자를 찾을 수 없습니다.' });
+    try {
+        // 이메일로 사용자 찾기 및 삭제
+        const user = await User.findOneAndDelete({ email });
+        if (!user) {
+            return res.status(404).json({ message: '사용자를 찾을 수 없습니다.' });
+        }
+
+        res.status(200).json({ message: '회원 탈퇴 성공' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: '회원 탈퇴 중 오류가 발생했습니다.' });
     }
-
-    // 사용자 삭제
-    users.splice(userIndex, 1);
-
-    res.status(200).json({ message: '회원 탈퇴 성공' });
 });
 
 
