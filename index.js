@@ -2,7 +2,18 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const dotenv = require('dotenv');
+const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
+const mongoose = require('mongoose');
+const User = require('./models/User');
+const bcrypt = require('bcryptjs');
+
+
 dotenv.config();
+mongoose.connect(process.env.MONGO_URL);
+const jwtSecret = process.env.JWT_SECRET;
+const bcryptSalt = bcrypt.genSaltSync(10);
+
 
 const app = express();
 const port = 3000;
@@ -14,6 +25,7 @@ app.use(cors({
 }));
 
 app.use(express.json());
+app.use(cookieParser());
 
 app.get('/', (req, res) => {
     res.send('베스티 튜터 백엔드 서버가 실행 중입니다!');
@@ -68,11 +80,10 @@ app.listen(port, () => {
 
 
 
-let users = []; // 임시 사용자 저장소
 let loginAttempts = {}; // 로그인 시도 간격 확인
 
 // 회원가입
-app.post('/user', (req, res) => {
+app.post('/user', async (req, res) => {
     const { email, password, nickname, phone, gender, address } = req.body;
 
     // 필수 입력값 확인
@@ -80,33 +91,43 @@ app.post('/user', (req, res) => {
         return res.status(400).json({ message: '필수 입력값이 누락되었습니다.' });
     }
 
-    // 이미 존재하는 사용자 확인 (email로 확인)
-    const existingUser = users.find(user => user.email === email);
-    if (existingUser) {
-        return res.status(400).json({ message: '이미 존재하는 사용자입니다.' });
+    try {
+        // 이미 존재하는 사용자 확인
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+            return res.status(400).json({ message: '이미 존재하는 사용자입니다.' });
+        }
+
+        // 마지막 유저의 userId + 1로 userId 생성
+        const lastUser = await User.findOne().sort({ userId: -1 });
+        const userId = lastUser ? lastUser.userId + 1 : 0;
+
+        // 비밀번호 해싱
+        const hashedPassword = await bcrypt.hash(password, bcryptSalt);
+
+        // 새 사용자 추가
+        const newUser = new User({ userId, email, password: hashedPassword, nickname, phone, gender, address });
+        await newUser.save();
+
+        res.status(201).json({ message: '회원가입 성공' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: '서버 오류가 발생했습니다.' });
     }
-
-    // 새 사용자 추가
-    const userId = users.length; // 인덱스 번호로 사용
-    const newUser = { userId, email, password, nickname, phone, gender, address };
-    users.push(newUser);
-
-    res.status(201).json({ message: '회원가입 성공' });
 });
 
 
 
 // 로그인
-app.post('/user/login', (req, res) => {
+app.post('/user/login', async (req, res) => {
     const { email, password } = req.body;
     const currentTime = Date.now();
 
-    // 필수 입력값 확인
     if (!email || !password) {
         return res.status(400).json({ message: '이메일 또는 비밀번호를 입력하세요.' });
     }
 
-    // 사용자별 로그인 시도 시간 확인
+    // 로그인 시도 시간 확인
     if (loginAttempts[email] && currentTime - loginAttempts[email] < 1000) {
         return res.status(429).json({ message: '로그인 시도가 너무 빠릅니다. 1초 후 다시 시도하세요.' });
     }
@@ -114,13 +135,29 @@ app.post('/user/login', (req, res) => {
     // 로그인 시도 시간 업데이트
     loginAttempts[email] = currentTime;
 
-    // 사용자 인증 (email과 password로 확인)
-    const user = users.find(u => u.email === email && u.password === password);
-    if (!user) {
-        return res.status(401).json({ message: '이메일 또는 비밀번호가 잘못되었습니다.' });
-    }
+    try {
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(401).json({ message: '이메일 또는 비밀번호가 잘못되었습니다.' });
+        }
 
-    res.status(200).json({ message: '로그인 성공' });
+        // 비밀번호 검증
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+            return res.status(401).json({ message: '이메일 또는 비밀번호가 잘못되었습니다.' });
+        }
+
+        // JWT 토큰 발급
+        const token = jwt.sign({ userId: user.userId, email: user.email }, jwtSecret, { expiresIn: '1h' });
+
+        // 쿠키에 토큰 저장
+        res.cookie('token', token, { httpOnly: true, secure: true, maxAge: 3600000 });
+
+        res.status(200).json({ message: '로그인 성공', token });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: '서버 오류가 발생했습니다.' });
+    }
 });
 
 
