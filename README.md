@@ -29,7 +29,7 @@ KAKAO_CALLBACK_URL={Your Kakao callback URL}
 ### 3. Node.js 패키지 설치
 필요한 패키지를 설치합니다.
 ```bash
-npm install express cors axios dotenv jsonwebtoken bcryptjs mongoose cookie-parser
+npm install express cors axios dotenv jsonwebtoken bcryptjs mongoose cookie-parser openai
 npm install --save-dev nodemon
 ```
 
