@@ -44,7 +44,7 @@ export default function Conversation() {
   return (
     <div className="container">
       <GoBack />
-      <h2 className="conversation-title">가족 소개하기</h2>
+        <h2 className="conversation-title">{selectedSubTopic} - {selectedDifficulty}</h2>
       <div className='chat-container'>
         {conversations.map((conv) => (
           <div key={conv.id}>
