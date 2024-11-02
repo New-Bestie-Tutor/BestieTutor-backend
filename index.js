@@ -503,4 +503,42 @@ app.post('/user/interests', (req, res) => {
     res.status(200).json({ message: '관심 주제 업데이트 완료' });
 });
 
-app.use('/conversation', conversationRoutes);
+/* admin */ 
+// 대주제 선택
+app.get('/topic', async (req, res) => {
+    try {
+        const topics = await Topic.find({});
+        res.status(200).json(topics);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: '서버 오류 발생' });
+    }
+});
+
+// 소주제 및 난이도 선택, 설명 안내: /subtopic
+app.get('/api/subtopic/:mainTopic', async (req, res) => {
+    const { mainTopic } = req.params;
+
+    try {
+        const topic = await Topic.findOne({ mainTopic: mainTopic });
+        if (!topic) {
+            return res.status(404).json({ message: '대주제를 찾을 수 없습니다.' });
+        }
+
+        // 소주제 목록과 각 소주제의 난이도 정보를 포함하여 응답
+        const subTopicsWithDescriptions = topic.subTopics.map(subTopic => {
+            return {
+                name: subTopic.name,
+                difficulties: subTopic.difficulties.map(difficulty => ({
+                    level: difficulty.difficulty,
+                    description: difficulty.description
+                }))
+            };
+        });
+
+        res.status(200).json(subTopicsWithDescriptions);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: '서버 오류 발생' });
+    }
+});
