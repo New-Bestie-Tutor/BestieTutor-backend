@@ -35,7 +35,7 @@ app.get('/', (req, res) => {
 // 카카오 로그인 라우트
 app.get('/user/login/kakao', (req, res) => {
     const redirectUri = encodeURIComponent(process.env.KAKAO_CALLBACK_URL);
-    const authUrl = `https://kauth.kakao.com/oauth/authorize?client_id=${process.env.KAKAO_CLIENT_ID}&redirect_uri=${redirectUri}&response_type=code`;
+    const authUrl = `https://kauth.kakao.com/oauth/authorize?client_id=${process.env.KAKAO_CLIENT_ID}&redirect_uri=${redirectUri}&response_type=code&scope=account_email,profile_nickname`;
     res.redirect(authUrl);
 });
 
@@ -43,7 +43,14 @@ app.get('/user/login/kakao', (req, res) => {
 app.get('/user/login/kakao/callback', async (req, res) => {
     const { code } = req.query;
 
+    // 인가 코드가 유효한지 확인
+    if (!code) {
+        return res.status(400).json({ message: '인가 코드가 없습니다.' });
+    }
+
+
     try {
+        // 액세스 토큰 요청
         const tokenResponse = await axios.post(`https://kauth.kakao.com/oauth/token`, null, {
             params: {
                 grant_type: 'authorization_code',
@@ -63,11 +70,31 @@ app.get('/user/login/kakao/callback', async (req, res) => {
         });
 
         const userData = userResponse.data;
+        
+        // 카카오 아이디, 이메일, 닉네임 가져오기
+        const kakaoId = userData.id;
+        const email = userData.kakao_account.email; 
+        const nickname = userData.properties.nickname;
 
-        // 사용자 정보 처리 (예: 데이터베이스에 저장)
-        console.log(userData);
+        // 사용자 정보 저장 또는 업데이트
+         const user = await User.findOneAndUpdate(
+            { kakaoId: kakaoId }, // 카카오 ID로 찾기
+            { email: email, nickname: nickname },
+            { upsert: true, new: true } // 찾지 못하면 새로 생성
+        );
 
-        res.status(200).json({ message: '로그인 성공', user: userData });
+        // MongoDB에 사용자 정보 저장 또는 업데이트
+        await User.findOneAndUpdate(
+            { kakaoId: kakaoId }, // 카카오 ID로 찾기
+            {
+                email: email,
+                nickname: nickname,
+            },
+            { upsert: true, new: true } // 찾지 못하면 새로 생성 
+        );
+
+        // 로그인 성공 시 /home으로 리디렉션
+        res.redirect('http://localhost:5173/home');
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: '로그인 실패' });
