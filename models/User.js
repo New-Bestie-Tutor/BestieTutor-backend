@@ -8,7 +8,8 @@ const UserSchema = new mongoose.Schema({
     nickname: { type: String, required: true },
     phone: { type: String, required: true },
     gender: { type: String, required: true },
-    address: { type: String, required: true }
+    address: { type: String, required: true },
+    kakaoId: { type: String, unique: true } // 카카오 아이디 필드 추가
 }, {timestamps: true});
 
 
