@@ -6,7 +6,11 @@ const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 const mongoose = require('mongoose');
 const User = require('./models/User');
+const Event = require('./models/Event');
+const Inquiry = require('./models/Inquiry');
+const Notice = require('./models/Notice');
 const bcrypt = require('bcryptjs');
+const conversationRoutes = require('./routes/conversationRoutes');
 
 
 dotenv.config();
@@ -188,28 +192,15 @@ app.post('/user/login', async (req, res) => {
 });
 
 
-
-// 아이디 찾기
-app.post('/user/searchID', (req, res) => {
-    const { email } = req.body;
-
-    // 필수 입력값 확인
-    if (!email) {
-        return res.status(400).json({ message: '이메일을 입력하세요.' });
-    }
-
-    // 이메일로 사용자 찾기
-    const user = users.find(u => u.email === email);
-    if (!user) {
-        return res.status(400).json({ message: '해당 이메일을 가진 사용자가 없습니다.' });
-    }
-
-    // 아이디 반환
-    res.status(200).json({ userId: user.userId });
+// 로그아웃
+app.post('/user/logout', (req, res) => {
+    res.clearCookie('token', { httpOnly: true, secure: true });
+    res.status(200).json({ success: true, message: '로그아웃 성공' });
 });
 
+
 // 회원 정보 수정
-app.put('/user', (req, res) => {
+app.put('/user', async (req, res) => {
     const { email, password, nickname, phone, gender, address } = req.body;
 
     // 필수 입력값 확인
@@ -217,24 +208,31 @@ app.put('/user', (req, res) => {
         return res.status(400).json({ message: '이메일을 입력하세요.' });
     }
 
-    // 이메일로 사용자 찾기
-    const user = users.find(u => u.email === email);
-    if (!user) {
-        return res.status(404).json({ message: '사용자를 찾을 수 없습니다.' });
+    try {
+        // 이메일로 사용자 찾기
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ message: '사용자를 찾을 수 없습니다.' });
+        }
+
+        // 사용자 정보 수정
+        if (password) user.password = await bcrypt.hash(password, bcryptSalt);
+        if (nickname) user.nickname = nickname;
+        if (phone) user.phone = phone;
+        if (gender) user.gender = gender;
+        if (address) user.address = address;
+
+        await user.save(); // 변경 사항 저장
+        res.status(200).json({ message: '회원정보 수정 성공', user });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: '회원정보 수정 중 오류가 발생했습니다.' });
     }
-
-    // 사용자 정보 수정
-    if (password) user.password = password;
-    if (nickname) user.nickname = nickname;
-    if (phone) user.phone = phone;
-    if (gender) user.gender = gender;
-    if (address) user.address = address;
-
-    res.status(200).json({ message: '회원정보 수정 성공', user });
 });
 
+
 // 비밀번호 재설정
-app.post('/user/resetPass', (req, res) => {
+app.post('/user/resetPass', async (req, res) => {
     const { email, newPassword } = req.body;
 
     // 필수 입력값 확인
@@ -242,20 +240,27 @@ app.post('/user/resetPass', (req, res) => {
         return res.status(400).json({ message: '이메일과 새 비밀번호를 입력하세요.' });
     }
 
-    // 이메일로 사용자 찾기
-    const user = users.find(u => u.email === email);
-    if (!user) {
-        return res.status(400).json({ message: '해당 이메일을 가진 사용자가 없습니다.' });
+    try {
+        // 이메일로 사용자 찾기
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ message: '해당 이메일을 가진 사용자가 없습니다.' });
+        }
+
+        // 비밀번호 재설정
+        user.password = await bcrypt.hash(newPassword, bcryptSalt);
+        await user.save();
+
+        res.status(200).json({ message: '비밀번호 재설정 성공' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: '비밀번호 재설정 중 오류가 발생했습니다.' });
     }
-
-    // 비밀번호 재설정
-    user.password = newPassword;
-
-    res.status(200).json({ message: '비밀번호 재설정 성공' });
 });
 
+
 // 회원 탈퇴
-app.delete('/user', (req, res) => {
+app.delete('/user', async (req, res) => {
     const { email } = req.body;
 
     // 필수 입력값 확인
@@ -263,25 +268,24 @@ app.delete('/user', (req, res) => {
         return res.status(400).json({ message: '이메일을 입력하세요.' });
     }
 
-    // 이메일로 사용자 찾기
-    const userIndex = users.findIndex(u => u.email === email);
-    if (userIndex === -1) {
-        return res.status(404).json({ message: '사용자를 찾을 수 없습니다.' });
+    try {
+        // 이메일로 사용자 찾기 및 삭제
+        const user = await User.findOneAndDelete({ email });
+        if (!user) {
+            return res.status(404).json({ message: '사용자를 찾을 수 없습니다.' });
+        }
+
+        res.status(200).json({ message: '회원 탈퇴 성공' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: '회원 탈퇴 중 오류가 발생했습니다.' });
     }
-
-    // 사용자 삭제
-    users.splice(userIndex, 1);
-
-    res.status(200).json({ message: '회원 탈퇴 성공' });
 });
 
 
 
-let notice = []; // 임시 공지사항 저장소
-
-
 // 공지사항 추가
-app.post('/notice', (req, res) => {
+app.post('/notice', async (req, res) => {
     const { title, content } = req.body;
 
     // 필수 입력값 확인
@@ -289,28 +293,26 @@ app.post('/notice', (req, res) => {
         return res.status(400).json({ message: '제목과 내용을 입력하세요.' });
     }
 
-    // 새로운 공지사항 ID 동적 생성
-    const newNoticeId = notice.length > 0 ? notice[notice.length - 1].noticeId + 1 : 1;
+    try {
+        const newNotice = new Notice({
+            title,
+            content,
+            inputDate: new Date(),
+            updateDate: new Date(),
+        });
+        await newNotice.save();
 
-
-    const newNotice = {
-        noticeId: newNoticeId,
-        title: title,
-        content: content,
-        inputDate: new Date().toISOString(),
-        updateDate: new Date().toISOString()
-    };
-
-    // 공지사항 배열에 추가
-    notice.push(newNotice);
-
-    res.status(201).json({ status: 'success', data: newNotice });
+        res.status(201).json({ status: 'success', data: newNotice });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: '공지사항 추가 중 오류가 발생했습니다.' });
+    }
 });
 
 
 
 // 공지사항 수정
-app.put('/notice/:noticeId', (req, res) => {
+app.put('/notice/:noticeId', async (req, res) => {
     const { noticeId } = req.params;
     const { title, content } = req.body;
 
@@ -318,64 +320,81 @@ app.put('/notice/:noticeId', (req, res) => {
         return res.status(400).json({ message: '제목과 내용을 모두 입력해야 합니다.' });
     }
 
-    const noticeIndex = notice.findIndex(n => n.noticeId === parseInt(noticeId));
-    if (noticeIndex === -1) {
-        return res.status(404).json({ message: '해당 공지사항을 찾을 수 없습니다.' });
+    try {
+        const updatedNotice = await Notice.findByIdAndUpdate(
+            noticeId,
+            { title, content, updateDate: new Date() },
+            { new: true }
+        );
+
+        if (!updatedNotice) {
+            return res.status(404).json({ message: '해당 공지사항을 찾을 수 없습니다.' });
+        }
+
+        res.status(200).json({ status: 'success', data: updatedNotice });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: '공지사항 수정 중 오류가 발생했습니다.' });
     }
-
-    notice[noticeIndex] = {
-        ...notice[noticeIndex],
-        title,
-        content,
-        updateDate: new Date().toISOString().split('T')[0]
-    };
-
-    res.status(200).json({ status: 'success', data: notice[noticeIndex] });
 });
 
 
 
 // 공지사항 삭제
-app.delete('/notice/:noticeId', (req, res) => {
+app.delete('/notice/:noticeId', async (req, res) => {
     const { noticeId } = req.params;
 
-    const noticeIndex = notice.findIndex(n => n.noticeId === parseInt(noticeId));
-    if (noticeIndex === -1) {
-        return res.status(404).json({ message: '해당 공지사항을 찾을 수 없습니다.' });
-    }
+    try {
+        const deletedNotice = await Notice.findByIdAndDelete(noticeId);
 
-    notice.splice(noticeIndex, 1);
-    res.status(200).json({ status: 'success', message: '삭제 완료' });
+        if (!deletedNotice) {
+            return res.status(404).json({ message: '해당 공지사항을 찾을 수 없습니다.' });
+        }
+
+        res.status(200).json({ status: 'success', message: '삭제 완료' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: '공지사항 삭제 중 오류가 발생했습니다.' });
+    }
 });
 
 
 
 // 공지사항 조회
-app.get('/notice', (req, res) => {
-    res.status(200).json({ status: 'success', data: notice });
+app.get('/notice', async (req, res) => {
+    try {
+        const notices = await Notice.find().sort({ inputDate: -1 }); // 최신순 정렬
+        res.status(200).json({ status: 'success', data: notices });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: '공지사항 조회 중 오류가 발생했습니다.' });
+    }
 });
 
 
 
 // 특정 공지사항 조회
-app.get('/notice/:noticeId', (req, res) => {
-    const noticeId = parseInt(req.params.noticeId);
+app.get('/notice/:noticeId', async (req, res) => {
+    const { noticeId } = req.params;
 
-    const FoundNotice = notice.find(n => n.noticeId === noticeId);//조회된 공지사항이므로 notice 말고 FoundNotice로 새로 정의해야 됨
+    try {
+        const foundNotice = await Notice.findById(noticeId);
 
-    if (!FoundNotice) {
-        return res.status(404).json({ message: '해당 공지사항을 찾을 수 없습니다.' });
+        if (!foundNotice) {
+            return res.status(404).json({ message: '해당 공지사항을 찾을 수 없습니다.' });
+        }
+
+        res.status(200).json({ status: 'success', data: foundNotice });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: '공지사항 조회 중 오류가 발생했습니다.' });
     }
-
-    res.status(200).json({ status: 'success', data: FoundNotice });
 });
 
 
 
-let events = []; // 임시 이벤트 저장소
-
 // 이벤트 추가
-app.post('/events', (req, res) => {
+app.post('/events', async (req, res) => {
     const { title, content } = req.body;
 
     // 필수 입력값 확인
@@ -383,28 +402,26 @@ app.post('/events', (req, res) => {
         return res.status(400).json({ message: '제목과 내용을 입력하세요.' });
     }
 
-    // 새로운 이벤트 ID 동적 생성
-    const newEventsId = events.length > 0 ? events[events.length - 1].eventsId + 1 : 1;
+    try {
+        const newEvent = new Event({
+            title,
+            content,
+            inputDate: new Date(),
+            updateDate: new Date(),
+        });
+        await newEvent.save();
 
-
-    const newEvents = {
-        eventsId: newEventsId,
-        title: title,
-        content: content,
-        inputDate: new Date().toISOString(),
-        updateDate: new Date().toISOString()
-    };
-
-    // 이벤트 배열에 추가
-    events.push(newEvents);
-
-    res.status(201).json({ status: 'success', data: newEvents });
+        res.status(201).json({ status: 'success', data: newEvent });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: '이벤트 추가 중 오류가 발생했습니다.' });
+    }
 });
 
 
 
 // 이벤트 수정
-app.put('/events/:eventsId', (req, res) => {
+app.put('/events/:eventsId', async (req, res) => {
     const { eventsId } = req.params;
     const { title, content } = req.body;
 
@@ -412,41 +429,55 @@ app.put('/events/:eventsId', (req, res) => {
         return res.status(400).json({ message: '제목과 내용을 모두 입력해야 합니다.' });
     }
 
-    const eventsIndex = notice.findIndex(n => n.eventsId === parseInt(eventsId));
-    if (eventsIndex === -1) {
-        return res.status(404).json({ message: '해당 공지사항을 찾을 수 없습니다.' });
+    try {
+        const updatedEvent = await Event.findByIdAndUpdate(
+            eventsId,
+            { title, content, updateDate: new Date() },
+            { new: true }
+        );
+
+        if (!updatedEvent) {
+            return res.status(404).json({ message: '해당 이벤트를 찾을 수 없습니다.' });
+        }
+
+        res.status(200).json({ status: 'success', data: updatedEvent });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: '이벤트 수정 중 오류가 발생했습니다.' });
     }
-
-    events[eventsIndex] = {
-        ...events[eventsIndex],
-        title,
-        content,
-        updateDate: new Date().toISOString().split('T')[0]
-    };
-
-    res.status(200).json({ status: 'success', data: events[eventsIndex] });
 });
 
 
 
 // 이벤트 삭제
-app.delete('/events/:eventsId', (req, res) => {
+app.delete('/events/:eventsId', async (req, res) => {
     const { eventsId } = req.params;
 
-    const eventsIndex = events.findIndex(n => n.eventsId === parseInt(eventsId));
-    if (eventsIndex === -1) {
-        return res.status(404).json({ message: '해당 이벤트를 찾을 수 없습니다.' });
-    }
+    try {
+        const deletedEvent = await Notice.findByIdAndDelete(eventsId);
 
-    events.splice(eventsIndex, 1);
-    res.status(200).json({ status: 'success', message: '삭제 완료' });
+        if (!deletedEvent) {
+            return res.status(404).json({ message: '해당 이벤트를 찾을 수 없습니다.' });
+        }
+
+        res.status(200).json({ status: 'success', message: '삭제 완료' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: '이벤트 삭제 중 오류가 발생했습니다.' });
+    }
 });
 
 
 
 // 이벤트 조회
-app.get('/events', (req, res) => {
-    res.status(200).json({ status: 'success', data: events });
+app.get('/events', async (req, res) => {
+    try {
+        const events = await Event.find().sort({ inputDate: -1 }); // 최신순 정렬
+        res.status(200).json({ status: 'success', data: events });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: '이벤트 조회 중 오류가 발생했습니다.' });
+    }
 });
 
 
@@ -471,3 +502,5 @@ app.post('/user/interests', (req, res) => {
     const { userId, interests } = req.body;
     res.status(200).json({ message: '관심 주제 업데이트 완료' });
 });
+
+app.use('/conversation', conversationRoutes);
