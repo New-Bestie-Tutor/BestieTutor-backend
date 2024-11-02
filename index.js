@@ -7,6 +7,7 @@ const cookieParser = require('cookie-parser');
 const mongoose = require('mongoose');
 const User = require('./models/User');
 const bcrypt = require('bcryptjs');
+const conversationRoutes = require('./routes/conversationRoutes');
 
 
 dotenv.config();
@@ -458,3 +459,5 @@ app.post('/user/interests', (req, res) => {
     const { userId, interests } = req.body;
     res.status(200).json({ message: '관심 주제 업데이트 완료' });
 });
+
+app.use('/conversation', conversationRoutes);
