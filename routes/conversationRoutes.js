@@ -3,6 +3,8 @@ const express = require('express');
 const router = express.Router();
 const conversationController = require('../controllers/conversationController');
 
-router.post('/conversation', conversationController.getResponse);
+router.post('/', conversationController.getResponse);
+
+router.post('/evaluate');
 
 module.exports = router;
