@@ -1,8 +1,13 @@
 const userService = require('../services/userService');
 
+const dotenv = require('dotenv');
+dotenv.config();
+
 exports.kakaoLogin = (req, res) => {
-    const redirectUri = encodeURIComponent(process.env.KAKAO_CALLBACK_URL);
-    const authUrl = `https://kauth.kakao.com/oauth/authorize?client_id=${process.env.KAKAO_CLIENT_ID}&redirect_uri=${redirectUri}&response_type=code&scope=account_email,profile_nickname`;
+    const clientId = process.env.KAKAO_CLIENT_ID;
+    const redirectUri = process.env.KAKAO_CALLBACK_URL;
+    const authUrl = `https://kauth.kakao.com/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=account_email,profile_nickname&&prompt=login`;
+    
     res.redirect(authUrl);
 };
 
@@ -15,7 +20,13 @@ exports.kakaoCallback = async (req, res) => {
 
     try {
         const user = await userService.kakaoLogin(code);
-        res.redirect('http://localhost:5173/home');
+
+        // 사용자 정보가 정상적으로 저장된 후 클라이언트 페이지로 리다이렉트
+        if (user) {
+            return res.redirect('http://localhost:5173/home');
+        } else {
+            throw new Error('사용자 정보를 저장하지 못했습니다.');
+        }
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: error.message });
