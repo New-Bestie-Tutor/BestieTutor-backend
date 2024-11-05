@@ -19,14 +19,18 @@ exports.kakaoCallback = async (req, res) => {
     }
 
     try {
-        const user = await userService.kakaoLogin(code);
+        // userService의 kakaoLogin을 호출하여 JWT 토큰 받기
+        const token = await userService.kakaoLogin(code);
 
-        // 사용자 정보가 정상적으로 저장된 후 클라이언트 페이지로 리다이렉트
-        if (user) {
-            return res.redirect('http://localhost:5173/home');
-        } else {
-            throw new Error('사용자 정보를 저장하지 못했습니다.');
-        }
+        // JWT 토큰을 쿠키에 설정
+        res.cookie('token', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production', // production 환경에서만 secure 옵션 활성화
+            maxAge: 3600000, // 1시간 (3600초 * 1000 밀리초)
+        });
+
+        // 클라이언트 페이지로 리다이렉트
+        return res.redirect('http://localhost:5173/home');
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: error.message });
