@@ -29,11 +29,9 @@ exports.kakaoLogin = async (code) => {
             }
         );
 
-        // Access Token 추출
+        // Access Token 추출 및 사용ㅈ 정보 요청
         const accessToken = tokenResponse.data.access_token;
-
-         // 사용자 정보 요청
-         const userInfoResponse = await axios.get('https://kapi.kakao.com/v2/user/me', {
+        const userInfoResponse = await axios.get('https://kapi.kakao.com/v2/user/me', {
             headers: {
                 Authorization: `Bearer ${accessToken}`,
             },
@@ -53,8 +51,16 @@ exports.kakaoLogin = async (code) => {
             { new: true, upsert: true } // 업데이트 또는 없으면 생성
         );
 
-        return user; // 저장된 또는 업데이트된 사용자 정보 반환
+        // JWT 토큰 생성
+        const expirationTime = Math.floor(Date.now() / 1000) + 60 * 60; // 1시간 유효
+        const payload = {
+            userId: user.userId,
+            email: user.email,
+            exp: expirationTime,
+        };
+        const token = jwt.sign(payload, jwtSecret);
 
+        return token; // 생성된 JWT 토큰 반환
     } catch (error) {
         console.error(error);
         throw new Error('카카오 로그인 실패');
