@@ -9,35 +9,51 @@ const jwtSecret = process.env.JWT_SECRET;
 const bcryptSalt = bcrypt.genSaltSync(10);
 
 exports.kakaoLogin = async (code) => {
+    const clientId = process.env.KAKAO_CLIENT_ID;
+    const redirectUri = process.env.KAKAO_CALLBACK_URL;
+
     try {
-        const tokenResponse = await axios.post(`https://kauth.kakao.com/oauth/token`, null, {
-            params: {
-                grant_type: 'authorization_code',
-                client_id: process.env.KAKAO_CLIENT_ID,
-                redirect_uri: process.env.KAKAO_CALLBACK_URL,
-                code,
-            },
-        });
-
-        const { access_token } = tokenResponse.data;
-
-        const userResponse = await axios.get(`https://kapi.kakao.com/v2/user/me`, {
-            headers: {
-                Authorization: `Bearer ${access_token}`,
-            },
-        });
-
-        const userData = userResponse.data;
-        const kakaoId = userData.id;
-        const email = userData.account_email; 
-        const nickname = userData.profile_nickname;
-
-        // 사용자 정보 저장 또는 업데이트
-        return await User.findOneAndUpdate(
-            { kakaoId: kakaoId },
-            { email: email, nickname: nickname },
-            { upsert: true, new: true }
+        const tokenResponse = await axios.post(
+            `https://kauth.kakao.com/oauth/token`, 
+            null, 
+            {
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                params: {
+                    grant_type: 'authorization_code',
+                    client_id: clientId,
+                    redirect_uri: redirectUri,
+                    code,
+                },
+            }
         );
+
+        // Access Token 추출
+        const accessToken = tokenResponse.data.access_token;
+
+         // 사용자 정보 요청
+         const userInfoResponse = await axios.get('https://kapi.kakao.com/v2/user/me', {
+            headers: {
+                Authorization: `Bearer ${accessToken}`,
+            },
+        });
+
+        const kakaoUser = userInfoResponse.data;
+
+        // 사용자 정보를 DB에 저장 또는 업데이트
+        const user = await User.findOneAndUpdate(
+            { kakaoId: kakaoUser.id }, // Kakao 고유 ID로 검색
+            {
+                kakaoId: kakaoUser.id,
+                email: kakaoUser.kakao_account.email,
+                nickname: kakaoUser.properties.nickname,
+                profileImage: kakaoUser.properties.profile_image,
+            },
+            { new: true, upsert: true } // 업데이트 또는 없으면 생성
+        );
+
+        return user; // 저장된 또는 업데이트된 사용자 정보 반환
 
     } catch (error) {
         console.error(error);
