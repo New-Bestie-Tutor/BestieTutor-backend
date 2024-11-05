@@ -35,7 +35,7 @@ npm install
 ### 4. 서버 실행
 서버를 실행합니다.
 ```bash
-nodemon index.js
+nodemon server.js
 ```
 
 ## 🎉 기여하기
