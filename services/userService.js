@@ -29,7 +29,7 @@ exports.kakaoLogin = async (code) => {
             }
         );
 
-        // Access Token 추출 및 사용ㅈ 정보 요청
+        // Access Token 추출 및 사용자 정보 요청
         const accessToken = tokenResponse.data.access_token;
         const userInfoResponse = await axios.get('https://kapi.kakao.com/v2/user/me', {
             headers: {
