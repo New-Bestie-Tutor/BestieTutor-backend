@@ -1,3 +1,5 @@
+const noticeService = require('../services/noticeService');
+
 // 공지사항 추가
 exports.addNotice = async (req, res) => {
     const { title, content } = req.body;
@@ -8,22 +10,13 @@ exports.addNotice = async (req, res) => {
     }
 
     try {
-        const newNotice = new Notice({
-            title,
-            content,
-            inputDate: new Date(),
-            updateDate: new Date(),
-        });
-        await newNotice.save();
-
+        const newNotice = await noticeService.addNotice(title, content);
         res.status(201).json({ status: 'success', data: newNotice });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: '공지사항 추가 중 오류가 발생했습니다.' });
     }
 };
-
-
 
 // 공지사항 수정
 exports.updateNotice = async (req, res) => {
@@ -35,12 +28,8 @@ exports.updateNotice = async (req, res) => {
     }
 
     try {
-        const updatedNotice = await Notice.findByIdAndUpdate(
-            noticeId,
-            { title, content, updateDate: new Date() },
-            { new: true }
-        );
-
+        const updatedNotice = await noticeService.updateNotice(noticeId, title, content);
+        
         if (!updatedNotice) {
             return res.status(404).json({ message: '해당 공지사항을 찾을 수 없습니다.' });
         }
@@ -57,7 +46,7 @@ exports.deleteNotice = async (req, res) => {
     const { noticeId } = req.params;
 
     try {
-        const deletedNotice = await Notice.findByIdAndDelete(noticeId);
+        const deletedNotice = await noticeService.deleteNotice(noticeId);
 
         if (!deletedNotice) {
             return res.status(404).json({ message: '해당 공지사항을 찾을 수 없습니다.' });
@@ -73,7 +62,7 @@ exports.deleteNotice = async (req, res) => {
 // 전체 공지사항 조회
 exports.getAllNotice = async (req, res) => {
     try {
-        const notices = await Notice.find().sort({ inputDate: -1 }); // 최신순 정렬
+        const notices = await noticeService.getAllNotices();
         res.status(200).json({ status: 'success', data: notices });
     } catch (error) {
         console.error(error);
@@ -86,7 +75,7 @@ exports.getNotice = async (req, res) => {
     const { noticeId } = req.params;
 
     try {
-        const foundNotice = await Notice.findById(noticeId);
+        const foundNotice = await noticeService.getNotice(noticeId);
 
         if (!foundNotice) {
             return res.status(404).json({ message: '해당 공지사항을 찾을 수 없습니다.' });
