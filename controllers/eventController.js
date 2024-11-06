@@ -1,3 +1,5 @@
+const eventService = require('../services/eventService');
+
 // 이벤트 추가
 exports.addEvent = async (req, res) => {
     const { title, content } = req.body;
@@ -8,14 +10,7 @@ exports.addEvent = async (req, res) => {
     }
 
     try {
-        const newEvent = new Event({
-            title,
-            content,
-            inputDate: new Date(),
-            updateDate: new Date(),
-        });
-        await newEvent.save();
-
+        const newEvent = await eventService.addEvent(title, content);
         res.status(201).json({ status: 'success', data: newEvent });
     } catch (error) {
         console.error(error);
@@ -24,9 +19,9 @@ exports.addEvent = async (req, res) => {
 };
 
 // 이벤트 조회
-exports.getEvent = async (req, res) => {
+exports.getEvents = async (req, res) => {
     try {
-        const events = await Event.find().sort({ inputDate: -1 }); // 최신순 정렬
+        const events = await eventService.getEvents();
         res.status(200).json({ status: 'success', data: events });
     } catch (error) {
         console.error(error);
@@ -36,7 +31,7 @@ exports.getEvent = async (req, res) => {
 
 // 이벤트 수정
 exports.updateEvent = async (req, res) => {
-    const { eventsId } = req.params;
+    const { eventId } = req.params;
     const { title, content } = req.body;
 
     if (!title || !content) {
@@ -44,11 +39,7 @@ exports.updateEvent = async (req, res) => {
     }
 
     try {
-        const updatedEvent = await Event.findByIdAndUpdate(
-            eventsId,
-            { title, content, updateDate: new Date() },
-            { new: true }
-        );
+        const updatedEvent = await eventService.updateEvent(eventId, title, content);
 
         if (!updatedEvent) {
             return res.status(404).json({ message: '해당 이벤트를 찾을 수 없습니다.' });
@@ -66,7 +57,7 @@ exports.deleteEvent = async (req, res) => {
     const { eventsId } = req.params;
 
     try {
-        const deletedEvent = await Notice.findByIdAndDelete(eventsId);
+        const deletedEvent = await eventService.deleteEvent(eventsId);
 
         if (!deletedEvent) {
             return res.status(404).json({ message: '해당 이벤트를 찾을 수 없습니다.' });

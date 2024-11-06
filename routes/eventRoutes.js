@@ -6,12 +6,12 @@ const eventController = require('../controllers/eventController');
 router.post('/', eventController.addEvent);
 
 // 전체 이벤트 조회
-router.get('/', eventController.getEvent);
+router.get('/', eventController.getEvents);
 
 // 특정 이벤트 수정
-router.put('/:eventsId', eventController.updateEvent);
+router.put('/:eventId', eventController.updateEvent);
 
 // 특정 이벤트 삭제
-router.delete('/:eventsId', eventController.deleteEvent);
+router.delete('/:eventId', eventController.deleteEvent);
 
 module.exports = router;
