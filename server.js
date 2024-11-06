@@ -44,7 +44,7 @@ app.use('/conversation', conversationRoutes);
 app.use('/notice', noticeRoutes);
 
 // 이벤트 관련 라우트
-app.use('/events', eventRoutes);
+app.use('/event', eventRoutes);
 
 // 주제 관련 라우트
 app.use('/topic', topicRoutes);
