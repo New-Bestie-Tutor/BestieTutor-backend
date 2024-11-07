@@ -117,16 +117,14 @@ exports.login = async (email, password) => {
 
 exports.updateUser = async (email, updates) => {
     const user = await User.findOne({ email });
-    if (!user) {
-        throw new Error('사용자를 찾을 수 없습니다.');
-    }
 
-    // 사용자 정보 수정
+    // 비밀번호 업데이트가 있을 경우 해시 처리
     if (updates.password) {
         updates.password = await bcrypt.hash(updates.password, bcryptSalt);
     }
 
     Object.assign(user, updates);
+
     await user.save();
     return user;
 };
