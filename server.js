@@ -7,6 +7,7 @@ const mongoose = require('mongoose');
 // 라우트 임포트
 const userRoutes = require('./routes/userRoutes');
 const conversationRoutes = require('./routes/conversationRoutes');
+const characterRoutes = require('./routes/characterRoutes');
 const noticeRoutes = require('./routes/noticeRoutes');
 const eventRoutes = require('./routes/eventRoutes');
 const topicRoutes = require('./routes/topicRoutes');
@@ -39,6 +40,9 @@ app.use('/user', userRoutes);
 
 // 회화 관련 라우트
 app.use('/conversation', conversationRoutes);
+
+// 캐릭터 관련 라우트
+app.use('/character', characterRoutes);
 
 // 공지사항 관련 라우트
 app.use('/notice', noticeRoutes);
