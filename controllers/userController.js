@@ -68,10 +68,18 @@ exports.logout = (req, res) => {
 };
 
 exports.updateUser = async (req, res) => {
-    const { email } = req.body;
+    const { email, password, nickname, phone, gender, address } = req.body;
+
+    const updateFields = { nickname, phone, gender, address };
+    if (password) {
+        updateFields.password = password; // 비밀번호가 있을 경우 추가
+    }
 
     try {
-        const updatedUser = await userService.updateUser(email, req.body);
+        const updatedUser = await userService.updateUser(email, updateFields);
+        if (!updatedUser) {
+            return res.status(404).json({ message: '사용자를 찾을 수 없습니다.' });
+        }
         res.status(200).json({ message: '회원정보 수정 성공', user: updatedUser });
     } catch (error) {
         console.error(error);
