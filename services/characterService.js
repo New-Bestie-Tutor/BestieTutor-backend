@@ -8,11 +8,11 @@ exports.getCharacters = async () => {
     }
 };
 
-// exports.addCharacter = async (mainTopic, subTopics) => {
+// exports.addCharacter = async (name, appearance, personality, tone) => {
 //     try {
-//         const newTopic = new Topic({ mainTopic, subTopics });
-//         await newTopic.save();
-//         return newTopic;
+//         const newCharacter = new Character({ name, appearance, personality, tone });
+//         await newCharacter.save();
+//         return newCharacter;
 //     } catch (error) {
 //         console.log(error);
 //         throw new Error('서버 오류가 발생했습니다.' + error.messsage);
