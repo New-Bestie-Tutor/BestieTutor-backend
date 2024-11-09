@@ -2,9 +2,9 @@ const conversationService = require('../services/conversationService');
 
 exports.getResponse = async (req, res) => {
     try {
-        const { text } = req.body;
+        const { text, conversationHistory } = req.body;
 
-        const gptResponse = await conversationService.GPTResponse(text);
+        const gptResponse = await conversationService.GPTResponse(text, conversationHistory);
         console.log('GPT:', gptResponse);
 
         /*
