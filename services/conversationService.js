@@ -18,13 +18,13 @@ const openai = new OpenAI({
 });
 
 // 새로운 대화 생성
-exports.createNewConversation = async function (email, topicId, difficulty) {
+exports.createNewConversation = async function (email, mainTopic, difficulty) {
     try {
         // 이메일로 사용자 조회
         const user = await User.findOne({ email });
         if (!user) throw new Error("사용자를 찾을 수 없습니다.");
         // Topic 모델에서 topicId와 난이도를 사용하여 description을 조회
-        const topic = await Topic.findById(topicId);
+        const topic = await Topic.findById( mainTopic );
         if (!topic) throw new Error("해당 Topic을 찾을 수 없습니다.");
     
         // 특정 난이도의 설명을 찾기

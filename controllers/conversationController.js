@@ -2,13 +2,13 @@ const conversationService = require('../services/conversationService');
 
 exports.getResponse = async (req, res) => {
     try {
-        const { text, converseId, userId, topicId } = req.body;
+        const { text, converseId, email, mainTopic, difficulty } = req.body;
 
         let conversationId = converseId;
 
         // 만약 converseId가 없는 경우 새 대화 생성
         if (!conversationId) {
-            conversationId = await conversationService.createNewConversation(userId, topicId);
+            conversationId = await conversationService.createNewConversation(email, mainTopic, difficulty);
         }
 
         const gptResponse = await conversationService.GPTResponse(text, conversationId);
