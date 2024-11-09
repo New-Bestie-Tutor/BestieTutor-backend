@@ -16,7 +16,7 @@ const openai = new OpenAI({
 });
 
 // 새로운 대화 생성
-async function createNewConversation(userId, topicId) {
+exports.createNewConversation = async function (userId, topicId) {
     try {
         // 새로운 Conversation 문서 생성 및 저장
         const newConversation = await new Conversation({
