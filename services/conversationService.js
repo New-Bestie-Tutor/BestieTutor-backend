@@ -4,6 +4,7 @@ const Conversation = require('../models/Conversation');
 const Message = require('../models/Message');
 const Topic = require('../models/Topic');
 const User = require('../models/User');
+const Character = require('../models/Character')
 // const { TextToSpeechClient } = require('@google-cloud/text-to-speech');
 
 dotenv.config();
@@ -23,28 +24,33 @@ exports.createNewConversation = async function (email, mainTopic, difficulty) {
         // 이메일로 사용자 조회
         const user = await User.findOne({ email });
         if (!user) throw new Error("사용자를 찾을 수 없습니다.");
+
         // Topic 모델에서 topicId와 난이도를 사용하여 description을 조회
-        const topic = await Topic.findById( mainTopic );
+        const topic = await Topic.findOne({ mainTopic });
         if (!topic) throw new Error("해당 Topic을 찾을 수 없습니다.");
+
+        const SubTopic = topic.subTopics.find(st => st.name === subTopic);
+        if (!SubTopic) throw new Error("해당 subTopic을 찾을 수 없습니다.");
+
+        const difficultyDescription = SubTopic.difficulties.find(diff => diff.difficulty === difficulty);
+        if (!difficultyDescription) throw new Error("해당 description을 찾을 수 없습니다.");        
+
+        // 캐릭터 찾기
+        const character = await Character.findOne({ name: characterName });
+        if (!character) throw new Error("캐릭터를 찾을 수 없습니다.");
     
-        // 특정 난이도의 설명을 찾기
-        const subTopic = topic.subTopics.find(sub => 
-            sub.difficulties.some(diff => diff.difficulty === difficulty)
-        );
-    
-        if (!subTopic) throw new Error("해당 난이도의 설명을 찾을 수 없습니다.");
-    
-        const description = subTopic.difficulties.find(diff => diff.difficulty === difficulty).description;
+        const prompt = `Starting conversation in the topic of ${mainTopic}, focusing on ${subTopic} at ${difficulty} difficulty. 
+        The character is ${character.name}, with ${character.appearance} appearance, ${character.personality} personality, and ${character.tone} tone.`;
         
         // 새로운 Conversation 문서 생성 및 저장
         const newConversation = await new Conversation({
             user_id: user._id,
-            topic_description: description,
+            topic_description: difficultyDescription.description,
             start_time: new Date(),
             end_time: null // 대화가 끝날 때 업데이트
         }).save();
 
-        return newConversation._id; // 새롭게 생성된 converseId 반환
+        return { conversationId: newConversation._id, prompt }; // 새롭게 생성된 converseId 반환
     } catch (error) {
         console.error('대화 생성 중 에러:', error);
         throw error;
