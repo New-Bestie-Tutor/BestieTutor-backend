@@ -29,7 +29,6 @@ exports.kakaoCallback = async (req, res) => {
             maxAge: 3600000, // 1시간 (3600초 * 1000 밀리초)
         });
 
-        // 클라이언트 페이지로 리다이렉트
         return res.redirect('http://localhost:5173/home');
     } catch (error) {
         console.error(error);
