@@ -62,11 +62,11 @@ exports.login = async (req, res) => {
 
         res.cookie('token', token, { httpOnly: true, secure: true, maxAge: 3600000 });
 
-        if (user.preferenceCompleted) {
-            return res.redirect('http://localhost:5173/home');
-        } else {
-            return res.redirect('http://localhost:5173/chooseLanguage');
-        }
+        const redirectUrl = user.preferenceCompleted
+            ? '/home'
+            : '/chooseLanguage';
+
+        return res.status(200).json({ redirectUrl });
     } catch (error) {
         console.error(error);
         res.status(401).json({ message: error.message });
