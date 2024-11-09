@@ -21,6 +21,7 @@ exports.kakaoCallback = async (req, res) => {
     try {
         // userService의 kakaoLogin을 호출하여 JWT 토큰 받기
         const token = await userService.kakaoLogin(code);
+        const user = await userService.getUserByToken(token); 
 
         // JWT 토큰을 쿠키에 설정
         res.cookie('token', token, {
@@ -29,7 +30,11 @@ exports.kakaoCallback = async (req, res) => {
             maxAge: 3600000, // 1시간 (3600초 * 1000 밀리초)
         });
 
-        return res.redirect('http://localhost:5173/home');
+        if (user.preferenceCompleted) {
+            return res.redirect('http://localhost:5173/home');
+        } else {
+            return res.redirect('http://localhost:5173/chooseLanguage');
+        }
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: error.message });
@@ -53,8 +58,15 @@ exports.login = async (req, res) => {
 
     try {
         const token = await userService.login(email, password);
+        const user = await userService.getUserByEmail(email);
+
         res.cookie('token', token, { httpOnly: true, secure: true, maxAge: 3600000 });
-        res.status(200).json({ message: '로그인 성공', token });
+
+        if (user.preferenceCompleted) {
+            return res.redirect('http://localhost:5173/home');
+        } else {
+            return res.redirect('http://localhost:5173/chooseLanguage');
+        }
     } catch (error) {
         console.error(error);
         res.status(401).json({ message: error.message });
@@ -126,4 +138,21 @@ exports.userInterest = (req, res) => {
     const { userId, interests } = req.body;
     const result = userService.userInterest(userId, interests);
     res.status(200).json(result);
+};
+
+// 특정 사용자의 정보 반환
+exports.getUser = async(req, res) => {
+    const { userId } = req.body;
+
+    try {
+        const user = await userService.getUser(userId);
+
+        if (!user) {
+            return res.status(404).json({ message: '사용자를 찾을 수 없습니다.'});
+        }
+        
+        return res.status(200).json(user);
+    } catch (error) {
+        return res.status(500).json({ message: error.message });
+    }
 };

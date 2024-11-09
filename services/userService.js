@@ -163,3 +163,32 @@ exports.userInterest = (userId, interests) => {
     // 관심 주제 설정 로직 구현
     return { message: '관심 주제 업데이트 완료' };
 };
+
+// 특정 사용자 정보 조회
+exports.getUser = async(userId) => {
+    try {
+        const user = await User.findOne({ userId });
+        return user;
+    } catch (error) {
+        throw new Error('사용자 정보를 가져오는 데 실패했습니다.');
+    }
+};
+
+exports.getUserByToken = async (token) => {
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await User.findOne({ userId: decoded.userId });
+        return user;
+    } catch (error) {
+        throw new Error('토큰으로 사용자 정보를 조회하는 데 실패했습니다.');
+    }
+};
+
+exports.getUserByEmail = async (email) => {
+    try {
+        const user = await User.findOne({ email });
+        return user;
+    } catch (error) {
+        throw new Error('사용자 정보를 가져오는 데 실패했습니다.');
+    }
+};
