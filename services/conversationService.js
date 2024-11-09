@@ -15,6 +15,23 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
 });
 
+// 새로운 대화 생성
+async function createNewConversation(userId, topicId) {
+    try {
+        // 새로운 Conversation 문서 생성 및 저장
+        const newConversation = await new Conversation({
+            user_id: userId,
+            topic_id: topicId,
+            start_time: new Date(),
+            end_time: null // 대화가 끝날 때 업데이트
+        }).save();
+
+        return newConversation._id; // 새롭게 생성된 converseId 반환
+    } catch (error) {
+        console.error('대화 생성 중 에러:', error);
+        throw error;
+    }
+}
 
 // 대화 내역을 MongoDB에서 불러오기
 async function getConversationHistory(converseId) {
@@ -71,6 +88,18 @@ exports.GPTResponse = async function (text, converseId) {
         throw error;
     }
 };
+/*
+exports.GPTResponse = async function (text, conversationHistory) {
+    const response = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+            ...conversationHistory,
+            { role: 'user', content: text }
+        ],
+    });
+    return response.choices[0].message.content;
+};
+*/
 /*
 exports.TextToSpeech = async function (text) {
     const [response] = await TTS.synthesizeSpeech({
