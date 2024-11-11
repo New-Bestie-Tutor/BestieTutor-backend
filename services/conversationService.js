@@ -19,37 +19,46 @@ const openai = new OpenAI({
 });
 
 // 새로운 대화 생성
-exports.createNewConversation = async function (email, mainTopic, difficulty) {
+exports.createNewConversation = async function (email, mainTopic, subTopic, difficulty, characterName) {
     try {
+        console.log('전달된 email:', email);
         // 이메일로 사용자 조회
         const user = await User.findOne({ email });
+        console.log('조회된 사용자:', user);
         if (!user) throw new Error("사용자를 찾을 수 없습니다.");
 
-        // Topic 모델에서 topicId와 난이도를 사용하여 description을 조회
+        // Topic 모델에서 mainTopic으로 조회
         const topic = await Topic.findOne({ mainTopic });
+        console.log('조회된 Topic:', topic);
         if (!topic) throw new Error("해당 Topic을 찾을 수 없습니다.");
 
         const SubTopic = topic.subTopics.find(st => st.name === subTopic);
+        console.log('조회된 SubTopic:', SubTopic);
         if (!SubTopic) throw new Error("해당 subTopic을 찾을 수 없습니다.");
 
         const difficultyDescription = SubTopic.difficulties.find(diff => diff.difficulty === difficulty);
-        if (!difficultyDescription) throw new Error("해당 description을 찾을 수 없습니다.");        
+        console.log('조회된 Difficulty Description:', difficultyDescription);
+        if (!difficultyDescription || !difficultyDescription.description) throw new Error("해당 description을 찾을 수 없습니다.");        
 
         // 캐릭터 찾기
         const character = await Character.findOne({ name: characterName });
+        console.log('조회된 캐릭터:', character);
         if (!character) throw new Error("캐릭터를 찾을 수 없습니다.");
     
         const prompt = `Starting conversation in the topic of ${mainTopic}, focusing on ${subTopic} at ${difficulty} difficulty. 
         The character is ${character.name}, with ${character.appearance} appearance, ${character.personality} personality, and ${character.tone} tone.`;
         
         // 새로운 Conversation 문서 생성 및 저장
-        const newConversation = await new Conversation({
+        const newConversation = new Conversation({
             user_id: user._id,
             topic_description: difficultyDescription.description,
             start_time: new Date(),
             end_time: null // 대화가 끝날 때 업데이트
-        }).save();
-
+        })
+        
+        await newConversation.save();
+        
+        console.log('생성된 대화 ID:', newConversation._id);
         return { conversationId: newConversation._id, prompt }; // 새롭게 생성된 converseId 반환
     } catch (error) {
         console.error('대화 생성 중 에러:', error);
@@ -61,7 +70,7 @@ exports.createNewConversation = async function (email, mainTopic, difficulty) {
 async function getConversationHistory(converseId) {
     try {
         // converse_id가 converseId와 일치하는 메시지들을 날짜 순서로 정렬하여 불러와 messages에 저장
-        const messages = await Message.find({ converse_id: converseId }).sort({ input_date: 1 });
+        const messages = await Message.find({ converse_id: converseId._id }).sort({ input_date: 1 });
 
         // MongoDB에서 가져온 메시지 데이터를 OpenAI API에 맞는 형식으로 변환
         return messages.map(msg => ({
