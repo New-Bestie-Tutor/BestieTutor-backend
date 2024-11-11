@@ -38,4 +38,7 @@ router.post('/interests', userController.userInterest);
 // 사용자 정보 조회
 router.get('/getUser', userController.getUser);
 
+// userId 조회
+router.get('/getUserId', userController.getUserId);
+
 module.exports = router;
