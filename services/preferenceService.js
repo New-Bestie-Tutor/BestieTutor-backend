@@ -13,8 +13,14 @@ exports.createPreferences = async (userId, preferences) => {
     }
 
     const newPreference = new Preference({ userId, ...preferences });
+    await newPreference.save();
 
-    return await newPreference.save();
+    await User.findOneAndUpdate(
+        { userId: userId },
+        { $set: { preferenceCompleted: true } }
+    );
+
+    return newPreference;
 }
 
 // 사용자 ID로 선호도 조회
@@ -29,9 +35,17 @@ exports.updatePreferences = async (userId, preferences) => {
         throw new Error('선호도가 존재하지 않습니다. 먼저 생성해 주세요.');
     }
 
-    return await Preference.findOneAndUpdate(
+    const updatedPreference = await Preference.findOneAndUpdate(
         { userId: userId },
         { $set: preferences },
         { new: true, runValidators: true }
     );
+
+    // 사용자 모델의 preferenceCompleted 업데이트
+    await User.findOneAndUpdate(
+        { userId: userId },
+        { $set: { preferenceCompleted: true } }
+    );
+
+    return updatedPreference;
 };

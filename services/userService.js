@@ -40,15 +40,24 @@ exports.kakaoLogin = async (code) => {
         const kakaoUser = userInfoResponse.data;
 
         // 사용자 정보를 DB에 저장 또는 업데이트
+        const lastUser = await User.findOne().sort({ userId: -1 });
+        const newUserId = lastUser ? lastUser.userId + 1 : 0;
+
         const user = await User.findOneAndUpdate(
             { kakaoId: kakaoUser.id }, // Kakao 고유 ID로 검색
             {
+                $setOnInsert: {
+                    userId: newUserId, // 새로운 userId 설정
+                    password: 'kakao-login', // 기본값
+                    phone: '', // 기본값
+                    address: '', // 기본값
+                },
                 kakaoId: kakaoUser.id,
-                email: kakaoUser.kakao_account.email,
-                nickname: kakaoUser.properties.nickname,
-                profileImage: kakaoUser.properties.profile_image,
+                email: kakaoUser.kakao_account.email || '',
+                nickname: kakaoUser.properties.nickname || 'Anonymous',
+                gender: kakaoUser.kakao_account.gender || 'hidden',
             },
-            { new: true, upsert: true } // 업데이트 또는 없으면 생성
+            { new: true, upsert: true } // 업데이트 또는 생성
         );
 
         // JWT 토큰 생성
@@ -162,4 +171,33 @@ exports.userLevel = (userId, level) => {
 exports.userInterest = (userId, interests) => {
     // 관심 주제 설정 로직 구현
     return { message: '관심 주제 업데이트 완료' };
+};
+
+// 특정 사용자 정보 조회
+exports.getUser = async(userId) => {
+    try {
+        const user = await User.findOne({ userId: userId });
+        return user;
+    } catch (error) {
+        throw new Error('사용자 정보를 가져오는 데 실패했습니다.');
+    }
+};
+
+exports.getUserByToken = async (token) => {
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await User.findOne({ userId: decoded.userId });
+        return user;
+    } catch (error) {
+        throw new Error('토큰으로 사용자 정보를 조회하는 데 실패했습니다.');
+    }
+};
+
+exports.getUserByEmail = async (email) => {
+    try {
+        const user = await User.findOne({ email });
+        return user;
+    } catch (error) {
+        throw new Error('사용자 정보를 가져오는 데 실패했습니다.');
+    }
 };

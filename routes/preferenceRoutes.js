@@ -11,4 +11,4 @@ router.get('/:userId', preferenceController.getPreferences);
 // 특정 사용자 선호도 수정
 router.put('/:userId', preferenceController.updatePreferences);
 
-module.exports = router;0
+module.exports = router;
