@@ -41,4 +41,7 @@ router.get('/getUser', userController.getUser);
 // userId 조회
 router.get('/getUserId', userController.getUserId);
 
+//로그인유지
+router.get('/profile', userController.profile);
+
 module.exports = router;

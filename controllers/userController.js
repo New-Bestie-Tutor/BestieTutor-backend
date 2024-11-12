@@ -1,6 +1,7 @@
 const userService = require('../services/userService');
-
+const cookieParser = require('cookie-parser');
 const dotenv = require('dotenv');
+const jwt = require('jsonwebtoken');
 dotenv.config();
 
 exports.kakaoLogin = (req, res) => {
@@ -72,6 +73,24 @@ exports.login = async (req, res) => {
         res.status(401).json({ message: error.message });
     }
 };
+
+exports.profile = async (req, res) => {
+    const token = req.cookies.token;
+    const secret = process.env.JWT_SECRET; 
+
+    if (!token) {
+        return res.status(401).json({ message: 'No token provided' });
+    }
+
+    jwt.verify(token, secret, (err, decoded) => {
+        if (err) {
+            console.error("Token verification failed:", err);
+            return res.status(403).json({ message: 'Failed to authenticate token' });
+        }
+        res.json(decoded); 
+    });
+};
+
 
 exports.logout = (req, res) => {
     res.clearCookie('token', { httpOnly: true, secure: true });
