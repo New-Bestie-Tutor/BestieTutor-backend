@@ -91,7 +91,8 @@ exports.register = async (email, password, nickname, phone, gender, address) => 
     const hashedPassword = await bcrypt.hash(password, bcryptSalt);
 
     // 새 사용자 추가
-    const newUser = new User({ userId, email, password: hashedPassword, nickname, phone, gender, address });
+    const newUser = new User({ userId, email, password: hashedPassword, nickname, 
+        phone, gender, address, kakaoId: userId.toString() });
     await newUser.save();
     return newUser;
 };
@@ -114,6 +115,7 @@ exports.login = async (email, password) => {
         const payload = {
             userId: user.userId,
             email: user.email,
+            kakaoId: user.kakaoId,
             exp: expirationTime,
         };
         const token = jwt.sign(payload, jwtSecret);
