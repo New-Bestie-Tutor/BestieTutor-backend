@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const messageSchema = new mongoose.Schema({
-    message_id: { type: Number, unique: true },
+    message_id: { type: String, unique: true },
     converse_id: { type: mongoose.Schema.Types.ObjectId, required: true, ref: 'Conversation' }, // Conversation 모델과 연결
     message: { type: String, required: true },
     message_type: { 

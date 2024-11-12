@@ -10,7 +10,8 @@ exports.getResponse = async (req, res) => {
 
         // 만약 converseId가 없는 경우 새 대화 생성
         if (!conversationId) {
-            conversationId = await conversationService.createNewConversation(email, mainTopic, subTopic, difficulty, characterName);
+            const newConversation = await conversationService.createNewConversation(email, mainTopic, subTopic, difficulty, characterName);
+            conversationId = newConversation.conversationId;
             console.log('생성된 conversationId:', conversationId);        
         }
 

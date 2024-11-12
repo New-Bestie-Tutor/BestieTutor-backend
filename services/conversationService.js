@@ -1,5 +1,6 @@
 const OpenAI = require('openai');
 const dotenv = require('dotenv');
+const { v4: uuidv4 } = require('uuid');
 const Conversation = require('../models/Conversation');
 const Message = require('../models/Message');
 const Topic = require('../models/Topic');
@@ -102,6 +103,7 @@ exports.GPTResponse = async function (text, converseId) {
 
         // 사용자 메시지와 GPT 응답을 MongoDB에 저장
         await new Message({
+            message_id: uuidv4(),
             converse_id: converseId,
             message: text,
             message_type: 'USER',
@@ -109,6 +111,7 @@ exports.GPTResponse = async function (text, converseId) {
         }).save();
 
         await new Message({
+            message_id: uuidv4(),
             converse_id: converseId,
             message: gptResponse,
             message_type: 'BOT',
