@@ -40,12 +40,11 @@ exports.kakaoLogin = async (code) => {
         const kakaoUser = userInfoResponse.data;
 
         // 사용자 정보를 DB에 저장 또는 업데이트
-        const lastUser = await User.findOne().sort({ userId: -1 });
-        const newUserId = lastUser ? lastUser.userId + 1 : 0;
-
         const user = await User.findOneAndUpdate(
             { kakaoId: kakaoUser.id }, // Kakao 고유 ID로 검색
             {
+        
+
                 $setOnInsert: {
                     userId: newUserId, // 새로운 userId 설정
                     password: 'kakao-login', // 기본값
