@@ -1,5 +1,5 @@
 const userService = require('../services/userService');
-const cookieParser = require('cookie-parser');
+const cookieParser = require('cookie-parser');const cookieParser = require('cookie-parser');
 const dotenv = require('dotenv');
 const jwt = require('jsonwebtoken');
 dotenv.config();
@@ -159,7 +159,6 @@ exports.userInterest = (req, res) => {
     res.status(200).json(result);
 };
 
-// 특정 사용자의 정보 반환
 exports.getUser = async(req, res) => {
     const { userId } = req.body;
 
