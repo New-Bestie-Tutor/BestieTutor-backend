@@ -35,4 +35,13 @@ router.post('/level', userController.userLevel);
 // 관심 주제 설정
 router.post('/interests', userController.userInterest);
 
+// 사용자 정보 조회
+router.get('/getUser', userController.getUser);
+
+// userId 조회
+router.get('/getUserId', userController.getUserId);
+
+//로그인유지
+router.get('/profile', userController.profile);
+
 module.exports = router;
