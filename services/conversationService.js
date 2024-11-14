@@ -1,14 +1,12 @@
 const OpenAI = require('openai');
-const dotenv = require('dotenv');
 const { v4: uuidv4 } = require('uuid');
 const Conversation = require('../models/Conversation');
 const Message = require('../models/Message');
 const Topic = require('../models/Topic');
-const User = require('../models/User');
 const Character = require('../models/Character')
+const User = require('../models/User');
 // const { TextToSpeechClient } = require('@google-cloud/text-to-speech');
 
-dotenv.config();
 
 /*
 const TTS = new TextToSpeechClient({
@@ -28,7 +26,7 @@ exports.createNewConversation = async function (email, mainTopic, subTopic, diff
         console.log('조회된 사용자:', user);
         if (!user) throw new Error("사용자를 찾을 수 없습니다.");
 
-        // Topic 모델에서 mainTopic으로 조회
+        // Topic 모델 조회
         const topic = await Topic.findOne({ mainTopic });
         console.log('조회된 Topic:', topic);
         if (!topic) throw new Error("해당 Topic을 찾을 수 없습니다.");

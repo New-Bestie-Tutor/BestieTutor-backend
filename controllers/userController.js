@@ -1,5 +1,5 @@
 const userService = require('../services/userService');
-const cookieParser = require('cookie-parser');const cookieParser = require('cookie-parser');
+const cookieParser = require('cookie-parser');
 const dotenv = require('dotenv');
 const jwt = require('jsonwebtoken');
 dotenv.config();
