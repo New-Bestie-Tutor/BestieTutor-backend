@@ -75,7 +75,7 @@ exports.login = async (req, res) => {
 };
 
 exports.profile = async (req, res) => {
-    const token = req.cookies.token;
+    const token = req.cookies.token || req.headers.authorization?.split(" ")[1];
     const secret = process.env.JWT_SECRET; 
 
     if (!token) {
