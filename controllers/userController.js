@@ -160,7 +160,7 @@ exports.userInterest = (req, res) => {
 };
 
 exports.getUser = async(req, res) => {
-    const { userId } = req.body;
+    const { userId } = req.query;
 
     try {
         const user = await userService.getUser(userId);
