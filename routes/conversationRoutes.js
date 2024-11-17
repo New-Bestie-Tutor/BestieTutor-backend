@@ -3,8 +3,8 @@ const router = express.Router();
 const conversationController = require('../controllers/conversationController');
 const feedbackController = require('../controllers/feedbackController');
 
-router.post('/', conversationController.getResponse);
+router.post('/getResponse', conversationController.getResponse);
 
-router.post('/', feedbackController.addFeedback);
+router.post('/addFeedback', feedbackController.addFeedback);
 
 module.exports = router;

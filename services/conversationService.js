@@ -6,14 +6,14 @@ const Topic = require('../models/Topic');
 const Character = require('../models/Character')
 const User = require('../models/User');
 const Feedback = require('../models/Feedback');
-// const { TextToSpeechClient } = require('@google-cloud/text-to-speech');
+const { TextToSpeechClient } = require('@google-cloud/text-to-speech');
 
 
-/*
+
 const TTS = new TextToSpeechClient({
     keyFilename: process.env.GOOGLE_API_KEY
 });
-*/
+
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
 });
@@ -191,16 +191,18 @@ exports.GPTResponse = async function (text, converseId) {
 };
 
 
-/*
-exports.TextToSpeech = async function (text) {
-    const [response] = await TTS.synthesizeSpeech({
-        input: { text },
-        voice: { languageCode: 'en-US', ssmlGender: 'NEUTRAL' },
-        audioConfig: { audioEncoding: 'MP3' },
-    });
+exports.generateTTS = async function (text) {
+    try {
+        const [response] = await TTS.synthesizeSpeech({
+            input: { text },
+            voice: { languageCode: 'ko-KR', ssmlGender: 'NEUTRAL' },
+            audioConfig: { audioEncoding: 'MP3' },
+        });
 
-    const fileName = `response${audioIndex++}.mp3`;
-    fs.writeFileSync(fileName, response.audioContent, 'base64');
-    return fileName;
-}
-*/
+        console.log('TTS 변환 성공');
+        return response.audioContent; // 음성 데이터 반환 (Buffer 형태)
+    } catch (error) {
+        console.error('TTS 변환 중 에러:', error);
+        throw error;
+    }
+};
