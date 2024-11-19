@@ -2,6 +2,7 @@ const axios = require('axios');
 const conversationService = require('../services/conversationService');
 const Topic = require('../models/Topic');
 const Character = require('../models/Character');
+const Conversation = require('../models/Conversation');
 
 // 대화 기록 조회
 exports.getConversationHistory = async (req, res) => {
