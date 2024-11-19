@@ -157,6 +157,9 @@ exports.GPTResponse = async function (text, converseId) {
         const response = await openai.chat.completions.create({
             model: 'gpt-4o-mini',
             messages: conversationHistory,
+            temperature: 0.7,
+            max_tokens: 200,
+            top_p: 0.9,
         });
 
         const gptResponse = response.choices[0].message.content;
@@ -195,7 +198,7 @@ exports.generateTTS = async function (text) {
     try {
         const [response] = await TTS.synthesizeSpeech({
             input: { text },
-            voice: { languageCode: 'ko-KR', ssmlGender: 'NEUTRAL' },
+            voice: { languageCode: 'en-US', ssmlGender: 'NEUTRAL' },
             audioConfig: { audioEncoding: 'MP3' },
         });
 
