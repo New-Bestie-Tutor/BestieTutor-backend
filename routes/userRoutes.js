@@ -44,4 +44,7 @@ router.get('/getUserId', userController.getUserId);
 //로그인유지
 router.get('/profile', userController.profile);
 
+//이메일 중복 확인
+router.post('/checkEmailDuplicate', userController.checkEmailDuplicate);
+
 module.exports = router;
