@@ -3,6 +3,52 @@ const conversationService = require('../services/conversationService');
 const Topic = require('../models/Topic');
 const Character = require('../models/Character');
 
+// 대화 기록 조회
+exports.getConversationHistory = async (req, res) => {
+    try {
+        const { email } = req.params;
+
+        // 대화 데이터 조회
+        const conversations = await Conversation.find({ email }).sort({ start_time: -1 });
+        if (conversations.length === 0) {
+            return res.status(404).json({ message: '해당 사용자의 대화를 찾을 수 없습니다.' });
+        }
+
+        // 각 대화에 포함된 메시지와 피드백 데이터 추가
+        const conversationDetails = await Promise.all(
+            conversations.map(async (conversation) => {
+                const messages = await Message.find({ converse_id: conversation._id }).sort({ input_date: 1 });
+                const feedbacks = await Feedback.find({ converse_id: conversation._id });
+
+                return {
+                    conversationId: conversation._id,
+                    topicDescription: conversation.topic_description,
+                    startTime: conversation.start_time,
+                    endTime: conversation.end_time,
+                    messages: messages.map(message => ({
+                        messageId: message.message_id,
+                        content: message.message,
+                        type: message.message_type,
+                        inputDate: message.input_date
+                    })),
+                    feedbacks: feedbacks.map(feedback => ({
+                        feedbackId: feedback._id,
+                        messageId: feedback.message_id,
+                        content: feedback.feedback,
+                        startTime: feedback.start_time
+                    }))
+                };
+            })
+        );
+
+        res.status(200).json({ conversations: conversationDetails });
+    } catch (error) {
+        console.error('대화 기록 조회 중 에러:', error);
+        res.status(500).json({ message: '대화 기록 조회 중 에러' });
+    }
+};
+
+// GPT 응답
 exports.getResponse = async (req, res) => {
     try {
         // 사용자 정보 가져오기
