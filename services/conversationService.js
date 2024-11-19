@@ -5,14 +5,15 @@ const Message = require('../models/Message');
 const Topic = require('../models/Topic');
 const Character = require('../models/Character')
 const User = require('../models/User');
-// const { TextToSpeechClient } = require('@google-cloud/text-to-speech');
+const Feedback = require('../models/Feedback');
+const { TextToSpeechClient } = require('@google-cloud/text-to-speech');
 
 
-/*
+
 const TTS = new TextToSpeechClient({
     keyFilename: process.env.GOOGLE_API_KEY
 });
-*/
+
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
 });
@@ -100,6 +101,50 @@ async function getConversationHistory(converseId) {
     }
 }
 
+
+// 메시지에 자동으로 피드백 추가
+async function generateFeedbackForMessage(messageId, userText) {
+    try {
+        const message = await Message.findOne({ message_id: messageId });
+        if (!message) {
+            throw new Error("Message not found.");
+        }
+        
+        // 피드백 생성을 위한 prompt
+        const prompt = `
+You are a professional language tutor. Your task is to evaluate and provide feedback on the given user's message. 
+Provide constructive feedback on grammar, vocabulary, sentence structure, and overall clarity. 
+Offer suggestions for improvement where necessary.
+
+User's message: "${userText}"`;
+
+        // 피드백 생성
+        const response = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [
+                { role: 'system', content: "You are a helpful assistant." },
+                { role: 'user', content: prompt }
+            ],
+        });
+
+        const feedbackContent = response.choices[0].message.content;
+
+        const newFeedback = new Feedback({
+            feedbackId: uuidv4(),
+            converse_id: message.converse_id,
+            message_id: messageId,
+            feedback: feedbackContent,
+            start_time: new Date(),
+        });
+
+        await newFeedback.save();
+        console.log(`Feedback added for messageId: ${messageId}`);
+    } catch (error) {
+        console.error('피드백 생성 중 에러:', error);
+    }
+}
+
+
 // GPT와 대화하고 응답을 저장
 exports.GPTResponse = async function (text, converseId) {
     try {
@@ -112,26 +157,34 @@ exports.GPTResponse = async function (text, converseId) {
         const response = await openai.chat.completions.create({
             model: 'gpt-4o-mini',
             messages: conversationHistory,
+            temperature: 0.7,
+            max_tokens: 200,
+            top_p: 0.9,
         });
 
         const gptResponse = response.choices[0].message.content;
 
         // 사용자 메시지와 GPT 응답을 MongoDB에 저장
-        await new Message({
+        const userMessage = new Message({
             message_id: uuidv4(),
             converse_id: converseId,
             message: text,
             message_type: 'USER',
             input_date: new Date()
-        }).save();
+        });
+        await userMessage.save();
 
-        await new Message({
+        const botMessage = new Message({
             message_id: uuidv4(),
             converse_id: converseId,
             message: gptResponse,
             message_type: 'BOT',
             input_date: new Date()
-        }).save();
+        });
+        await botMessage.save();
+
+        // User 메시지에 대한 피드백 생성
+        await generateFeedbackForMessage(userMessage.message_id, text);
 
         return gptResponse;
     } catch (error) {
@@ -139,29 +192,20 @@ exports.GPTResponse = async function (text, converseId) {
         throw error;
     }
 };
-/*
-exports.GPTResponse = async function (text, conversationHistory) {
-    const response = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-            ...conversationHistory,
-            { role: 'user', content: text }
-        ],
-    });
-    return response.choices[0].message.content;
+
+
+exports.generateTTS = async function (text) {
+    try {
+        const [response] = await TTS.synthesizeSpeech({
+            input: { text },
+            voice: { languageCode: 'en-US', ssmlGender: 'NEUTRAL' },
+            audioConfig: { audioEncoding: 'MP3' },
+        });
+
+        console.log('TTS 변환 성공');
+        return response.audioContent; // 음성 데이터 반환 (Buffer 형태)
+    } catch (error) {
+        console.error('TTS 변환 중 에러:', error);
+        throw error;
+    }
 };
-*/
-
-/*
-exports.TextToSpeech = async function (text) {
-    const [response] = await TTS.synthesizeSpeech({
-        input: { text },
-        voice: { languageCode: 'en-US', ssmlGender: 'NEUTRAL' },
-        audioConfig: { audioEncoding: 'MP3' },
-    });
-
-    const fileName = `response${audioIndex++}.mp3`;
-    fs.writeFileSync(fileName, response.audioContent, 'base64');
-    return fileName;
-}
-*/
