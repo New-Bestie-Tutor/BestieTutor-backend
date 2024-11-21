@@ -38,45 +38,65 @@ exports.createNewConversation = async ({ email, mainTopic, subTopic, difficulty,
                 mainTopic,
                 'subTopics.name': subTopic
             });
-        
-        if (!topic) {
-            console.log(`Topic not found for mainTopic: ${mainTopic}, subTopic: ${subTopic}`);
-            throw new Error('해당 Topic을 찾을 수 없습니다.');
-        }
 
-        const subTopicData = topic.subTopics.find(st => st.name === subTopic);
-        if (!subTopicData) {
-            throw new Error('해당 SubTopic을 찾을 수 없습니다.');
-        }
+            if (!topic) {
+                console.log(`Topic not found for mainTopic: ${mainTopic}, subTopic: ${subTopic}`);
+                throw new Error('해당 Topic을 찾을 수 없습니다.');
+            }
 
-        const difficultyData = subTopicData.difficulties.find(d => d.difficulty === difficulty);
-        if (!difficultyData) {
-            throw new Error('해당 난이도를 찾을 수 없습니다.');
-        }
+            const subTopicData = topic.subTopics.find(st => st.name === subTopic);
+            if (!subTopicData) {
+                throw new Error('해당 SubTopic을 찾을 수 없습니다.');
+            }
 
-        // Character 조회
-        const character = await Character.findOne({ name: characterName });
-        if (!character) {
-            throw new Error('해당 Character를 찾을 수 없습니다.');
+            const difficultyData = subTopicData.difficulties.find(d => d.difficulty === difficulty);
+            if (!difficultyData) {
+                throw new Error('해당 난이도를 찾을 수 없습니다.');
+            }
+
+            // Character 조회
+            const character = await Character.findOne({ name: characterName });
+            if (!character) {
+                throw new Error('해당 Character를 찾을 수 없습니다.');
+            }
+
+            const initialPrompt = `You are acting as the character "${character.name}" with the following traits:
+            - Appearance: ${character.appearance}
+            - Personality: ${character.personality}
+            - Tone: ${character.tone}.
+
+            Stay in character throughout the conversation. Keep responses short, engaging, and in-character.
+            The conversation is about the following:
+            Topic: ${mainTopic}, Subtopic: ${subTopic}, Difficulty: ${difficulty}.
+            Provide an introduction to this topic and ask an engaging question to start the conversation.`;
+
+            // 새로운 Conversation 문서 생성 및 저장
+            conversation = new Conversation({
+                user_id: user._id,
+                topic_description: `${mainTopic} - ${subTopic} - ${difficulty}`,
+                start_time: new Date(),
+                end_time: null // 대화가 끝날 때 업데이트
+            })
+
+            await conversation.save();
+
+            // GPT의 첫 발화 생성
+            const gptResponse = await this.GPTResponse(initialPrompt, conversation._id, true);
+            console.log('GPT 첫 발화:', gptResponse);
+
+            // 첫 메시지를 Conversation에 저장
+            const botMessage = new Message({
+                message_id: uuidv4(),
+                converse_id: conversation._id,
+                message: gptResponse,
+                message_type: 'BOT',
+                input_date: new Date(),
+            });
+
+            await botMessage.save();
+        } else {
+            console.log('기존 대화 사용:', conversation._id);
         }
-    
-        const prompt = `Starting conversation in the topic of ${mainTopic}, focusing on ${subTopic} at ${difficulty} difficulty. 
-        The character is ${character.name}, with ${character.appearance} appearance, ${character.personality} personality, and ${character.tone} tone.`;
-        
-        // 새로운 Conversation 문서 생성 및 저장
-        conversation = new Conversation({
-            user_id: user._id,
-            topic_description: `${mainTopic} - ${subTopic} - ${difficulty}`,
-            start_time: new Date(),
-            end_time: null // 대화가 끝날 때 업데이트
-        })
-        
-        await conversation.save();
-        
-        console.log('생성된 대화 ID:', conversation._id);
-    } else {
-        console.log('기존 대화 사용:', conversation._id);
-    }
         return { conversationId: conversation._id }; // 새롭게 생성된 converseId 반환
     } catch (error) {
         console.error('대화 생성 중 에러:', error);
@@ -109,14 +129,13 @@ async function generateFeedbackForMessage(messageId, userText) {
         if (!message) {
             throw new Error("Message not found.");
         }
-        
-        // 피드백 생성을 위한 prompt
-        const prompt = `
-You are a professional language tutor. Your task is to evaluate and provide feedback on the given user's message. 
-Provide constructive feedback on grammar, vocabulary, sentence structure, and overall clarity. 
-Offer suggestions for improvement where necessary.
 
-User's message: "${userText}"`;
+        // 피드백 생성을 위한 prompt
+        const prompt = `You are a professional language tutor. Your task is to evaluate and provide feedback on the given user's message. 
+        Provide constructive feedback on grammar, vocabulary, sentence structure, and overall clarity. 
+        Offer suggestions for improvement where necessary.
+
+        User's message: "${userText}"`;
 
         // 피드백 생성
         const response = await openai.chat.completions.create({
@@ -146,11 +165,16 @@ User's message: "${userText}"`;
 
 
 // GPT와 대화하고 응답을 저장
-exports.GPTResponse = async function (text, converseId) {
+exports.GPTResponse = async function (text, converseId, isInitial = false) {
     try {
         // 대화 내역 가져오기
-        let conversationHistory = await getConversationHistory(converseId);
-        conversationHistory = [...conversationHistory, { role: 'user', content: text }]; // user 메시지 추가
+        const conversationHistory = await getConversationHistory(converseId);
+
+        if (isInitial) {
+            conversationHistory.push({ role: 'system', content: text });
+        } else {
+            conversationHistory.push({ role: 'user', content: text });
+        }
 
         console.log("Conversation history being sent to OpenAI:", JSON.stringify(conversationHistory, null, 2));
         // OpenAI API에 메시지 전송
@@ -162,7 +186,7 @@ exports.GPTResponse = async function (text, converseId) {
             top_p: 0.9,
         });
 
-        const gptResponse = response.choices[0].message.content;
+        const gptResponse = refineResponse(response.choices[0].message.content);
 
         // 사용자 메시지와 GPT 응답을 MongoDB에 저장
         const userMessage = new Message({
@@ -193,6 +217,13 @@ exports.GPTResponse = async function (text, converseId) {
     }
 };
 
+const refineResponse = (response) => {
+    let refined = response.trim();
+    if (refined.length > 150) {
+        refined = refined.slice(0, 150) + '...'; // 150자로 제한
+    }
+    return refined;
+};
 
 exports.generateTTS = async function (text) {
     try {
