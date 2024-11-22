@@ -84,16 +84,6 @@ exports.createNewConversation = async ({ email, mainTopic, subTopic, difficulty,
             const gptResponse = await this.GPTResponse(initialPrompt, conversation._id, true);
             console.log('GPT 첫 발화:', gptResponse);
 
-            // 첫 메시지를 Conversation에 저장
-            const botMessage = new Message({
-                message_id: uuidv4(),
-                converse_id: conversation._id,
-                message: gptResponse,
-                message_type: 'BOT',
-                input_date: new Date(),
-            });
-
-            await botMessage.save();
         } else {
             console.log('기존 대화 사용:', conversation._id);
         }
@@ -176,7 +166,6 @@ exports.GPTResponse = async function (text, converseId, isInitial = false) {
             conversationHistory.push({ role: 'user', content: text });
         }
 
-        console.log("Conversation history being sent to OpenAI:", JSON.stringify(conversationHistory, null, 2));
         // OpenAI API에 메시지 전송
         const response = await openai.chat.completions.create({
             model: 'gpt-4o-mini',
@@ -188,7 +177,6 @@ exports.GPTResponse = async function (text, converseId, isInitial = false) {
 
         const gptResponse = refineResponse(response.choices[0].message.content);
 
-        // 사용자 메시지와 GPT 응답을 MongoDB에 저장
         const userMessage = new Message({
             message_id: uuidv4(),
             converse_id: converseId,
@@ -229,7 +217,7 @@ exports.generateTTS = async function (text) {
     try {
         const [response] = await TTS.synthesizeSpeech({
             input: { text },
-            voice: { languageCode: 'en-US', ssmlGender: 'NEUTRAL' },
+            voice: { languageCode: 'ko-KR', ssmlGender: 'NEUTRAL' },
             audioConfig: { audioEncoding: 'MP3' },
         });
 
