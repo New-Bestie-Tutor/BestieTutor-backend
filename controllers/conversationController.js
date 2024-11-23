@@ -97,13 +97,16 @@ exports.getResponse = async (req, res) => {
             conversationId = conversationData.conversationId;
         }
 
-        // GPT 응답 생성
-        const gptResponse = await conversationService.GPTResponse(text, conversationId);
+        // GPT 응답 생성 （messageId 생성)
+        const { gptResponse, messageId } = await conversationService.GPTResponse(text, conversationId);
+
+        console.log("Generated gptResponse:", gptResponse);
+        console.log("Generated messageId:", messageId);
 
         // TTS 변환 후 텍스트와 음성 데이터 함께 응답
         const audioBuffer = await conversationService.generateTTS(gptResponse);
         res.set('Content-Type', 'application/json');
-        res.json({ gptResponse, audio: audioBuffer.toString('base64') });
+        res.json({ gptResponse, messageId, audio: audioBuffer.toString('base64') });
 
     } catch (error) {
         console.error('대화 중 에러:', error);

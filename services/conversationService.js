@@ -8,7 +8,7 @@ const User = require('../models/User');
 const Feedback = require('../models/Feedback');
 const { TextToSpeechClient } = require('@google-cloud/text-to-speech');
 
-
+require('dotenv').config(); // .env 파일 로드
 
 const TTS = new TextToSpeechClient({
     keyFilename: process.env.GOOGLE_API_KEY
@@ -186,7 +186,11 @@ exports.GPTResponse = async function (text, converseId) {
         // User 메시지에 대한 피드백 생성
         await generateFeedbackForMessage(userMessage.message_id, text);
 
-        return gptResponse;
+        console.log("Returning gptResponse and messageId:", gptResponse, userMessage.message_id);
+        return {
+            gptResponse,
+            messageId: userMessage.message_id // 사용자 메시지 ID 반환
+        };
     } catch (error) {
         console.error("GPT 대화 생성 중 에러:", error);
         throw error;

@@ -24,7 +24,7 @@ exports.getFeedbackByMessageId = async (req, res) => {
         const feedback = await feedbackService.getFeedbackByMessageId(messageId);
         res.status(200).json({ feedback });
     } catch (error) {
-        console.error('피드백 조회 중 에러:', error);
+        console.error(`피드백 조회 중 에러: `, error);
         res.status(500).json({ message: error.message || "피드백 조회 중 에러가 발생했습니다." });
     }
 };

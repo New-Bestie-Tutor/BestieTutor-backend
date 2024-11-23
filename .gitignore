@@ -229,5 +229,6 @@ $RECYCLE.BIN/
 
 # 환경 변수 파일
 .env
+bestietutor-tts-f1057790feab.json
 
 # End of https://www.toptal.com/developers/gitignore/api/react,node,windows,macos,linux
