@@ -40,7 +40,6 @@ exports.createNewConversation = async ({ email, mainTopic, subTopic, difficulty,
             });
 
             if (!topic) {
-                console.log(`Topic not found for mainTopic: ${mainTopic}, subTopic: ${subTopic}`);
                 throw new Error('해당 Topic을 찾을 수 없습니다.');
             }
 
@@ -64,7 +63,6 @@ exports.createNewConversation = async ({ email, mainTopic, subTopic, difficulty,
             - Appearance: ${character.appearance}
             - Personality: ${character.personality}
             - Tone: ${character.tone}.
-
             Stay in character throughout the conversation. Keep responses short, engaging, and in-character.
             The conversation is about the following:
             Topic: ${mainTopic}, Subtopic: ${subTopic}, Difficulty: ${difficulty}.
@@ -110,7 +108,6 @@ async function getConversationHistory(converseId) {
         throw error;
     }
 }
-
 
 // 메시지에 자동으로 피드백 추가
 async function generateFeedbackForMessage(messageId, userText) {
@@ -206,11 +203,27 @@ exports.GPTResponse = async function (text, converseId, isInitial = false) {
 };
 
 const refineResponse = (response) => {
-    let refined = response.trim();
-    if (refined.length > 150) {
-        refined = refined.slice(0, 150) + '...'; // 150자로 제한
+    // 이모티콘 제거
+    let refined = response.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}]+/gu, '');
+
+    // 번호 제거 (예: 1., 2., 3.)
+    refined = refined.replace(/^\d+\.\s+/gm, '');
+
+    // 지나치게 공백이 많은 경우 정리
+    refined = refined.replace(/\s+/g, ' ').trim();
+
+    // 문장 단위로 나누기 (일반적으로 마침표, 느낌표, 물음표를 기준으로)
+    const sentences = refined.split(/(?<=[.!?])\s+/);
+    let result = '';
+    for (const sentence of sentences) {
+        // 150자를 넘지 않는 범위에서 문장을 추가
+        if ((result + sentence).length > 150) {
+            break;
+        }
+        result += (result ? ' ' : '') + sentence; // 문장 사이에 공백 추가
     }
-    return refined;
+
+    return result.length > 0 ? result + '...' : refined; // 결과 반환 (최대 150자를 초과하면 '...' 추가)
 };
 
 exports.generateTTS = async function (text) {
