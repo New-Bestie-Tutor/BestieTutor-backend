@@ -114,7 +114,8 @@ async function generateFeedbackForMessage(messageId, userText) {
         const prompt = `
 You are a professional language tutor. Your task is to evaluate and provide feedback on the given user's message. 
 Provide constructive feedback on grammar, vocabulary, sentence structure, and overall clarity. 
-Offer suggestions for improvement where necessary.
+Offer suggestions for improvement where necessary. Your response should be under 200 characters.
+[중요] 단, 나한테는 한글로 말해줘. 그런데 추천 문장은 영어로 해줘야해.
 
 User's message: "${userText}"`;
 
@@ -144,6 +145,25 @@ User's message: "${userText}"`;
     }
 }
 
+exports.addUserMessage = async function (text, converseId) {
+    const userMessage = new Message({
+        message_id: uuidv4(),
+        converse_id: converseId,
+        message: text,
+        message_type: 'USER',
+        input_date: new Date()
+    });
+    await userMessage.save();
+
+    return {
+        messageId: userMessage.message_id // 사용자 메시지 ID 반환
+    };
+}
+
+exports.generateFeedbackForMessage = async function (messageId, text) {
+    // User 메시지에 대한 피드백 생성
+    await generateFeedbackForMessage(messageId, text);
+}
 
 // GPT와 대화하고 응답을 저장
 exports.GPTResponse = async function (text, converseId) {
@@ -164,16 +184,6 @@ exports.GPTResponse = async function (text, converseId) {
 
         const gptResponse = response.choices[0].message.content;
 
-        // 사용자 메시지와 GPT 응답을 MongoDB에 저장
-        const userMessage = new Message({
-            message_id: uuidv4(),
-            converse_id: converseId,
-            message: text,
-            message_type: 'USER',
-            input_date: new Date()
-        });
-        await userMessage.save();
-
         const botMessage = new Message({
             message_id: uuidv4(),
             converse_id: converseId,
@@ -183,20 +193,14 @@ exports.GPTResponse = async function (text, converseId) {
         });
         await botMessage.save();
 
-        // User 메시지에 대한 피드백 생성
-        await generateFeedbackForMessage(userMessage.message_id, text);
-
-        console.log("Returning gptResponse and messageId:", gptResponse, userMessage.message_id);
         return {
-            gptResponse,
-            messageId: userMessage.message_id // 사용자 메시지 ID 반환
+            gptResponse
         };
     } catch (error) {
         console.error("GPT 대화 생성 중 에러:", error);
         throw error;
     }
 };
-
 
 exports.generateTTS = async function (text) {
     try {
