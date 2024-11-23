@@ -38,9 +38,15 @@ class FeedbackService {
     }
 
     async getFeedbackByMessageId(messageId) {
+        console.log("피드백 찾기 Received messageId:", messageId);
+        if (!messageId) {
+            throw new Error("messageId가 제공되지 않았습니다.");
+        }
+
         const feedback = await Feedback.findOne({ message_id: messageId });
+        console.log("찾은 피드백: ", feedback); // 피드백은 생성되고 있음 
         if (!feedback) {
-            throw new Error("해당 메시지에 대한 피드백을 찾을 수 없습니다.");
+            throw new Error(`메시지 ${messageId} 에 대한 피드백을 찾을 수 없습니다.`);
         }
         return feedback;
     }
