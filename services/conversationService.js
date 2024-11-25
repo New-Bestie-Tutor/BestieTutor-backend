@@ -160,14 +160,6 @@ exports.GPTResponse = async function (text, converseId, isInitial = false) {
             conversationHistory.push({ role: 'user', content: text });
         }
 
-        const messages = createPrompt({
-            mainTopic,
-            subTopic,
-            difficulty,
-            detail: difficultyData.detail,
-            character,
-        });
-
         // OpenAI API에 메시지 전송
         const response = await openai.chat.completions.create({
             model: 'gpt-4o-mini',
