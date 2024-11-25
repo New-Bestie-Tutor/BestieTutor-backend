@@ -18,6 +18,58 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
 });
 
+exports.generateInitialMessage = async ({ mainTopic, subTopic, difficulty, characterName }) => {
+    try {
+        // 토픽과 캐릭터 데이터 확인
+        const topic = await Topic.findOne({ mainTopic });
+        if (!topic) {
+            throw new Error('토픽을 찾을 수 없습니다.');
+        }
+
+        const subTopicData = topic.subTopics.find(sub => sub.name === subTopic);
+        if (!subTopicData) {
+            throw new Error('하위 토픽을 찾을 수 없습니다.');
+        }
+
+        const character = await Character.findOne({ name: characterName });
+        if (!character) {
+            throw new Error('캐릭터를 찾을 수 없습니다.');
+        }
+
+        // GPT에 보낼 프롬프트 생성
+        const messages = [
+            {
+                role: "system",
+                content: `You are acting as the character "${character.name}" with the following traits: Personality: ${character.personality}, Tone: ${character.tone}. Stay in character throughout the conversation.`,
+            },
+            {
+                role: "user",
+                content: `The conversation is about: Topic: ${mainTopic}, Subtopic: ${subTopic}, Difficulty: ${difficulty}. 
+                주제에 관한 발화를 3문장 이내로, 실제 사람과 대화하듯이 번호와 이모티콘 등은 넣지 말고 제공해`,
+            },
+        ];
+
+        // GPT를 통해 첫 메시지 생성
+        const gptResponse = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: messages,
+            max_tokens: 150,
+            temperature: 0.7
+        });
+
+        const initialMessage = gptResponse.choices[0].message.content.trim();
+        console.log('GPT Initial Message:', initialMessage);
+
+        return {
+            initialMessage
+        };
+    } catch (error) {
+        console.error('초기 메시지 생성 중 에러:', error);
+        throw error;
+    }
+};
+
+
 // 새로운 대화 생성
 exports.createNewConversation = async ({ email, mainTopic, subTopic, difficulty, characterName }) => {
     try {
@@ -59,15 +111,6 @@ exports.createNewConversation = async ({ email, mainTopic, subTopic, difficulty,
                 throw new Error('해당 Character를 찾을 수 없습니다.');
             }
 
-            const initialPrompt = `You are acting as the character "${character.name}" with the following traits:
-            - Appearance: ${character.appearance}
-            - Personality: ${character.personality}
-            - Tone: ${character.tone}.
-            Stay in character throughout the conversation. Keep responses short, engaging, and in-character.
-            The conversation is about the following:
-            Topic: ${mainTopic}, Subtopic: ${subTopic}, Difficulty: ${difficulty}.
-            Provide an introduction to this topic and ask an engaging question to start the conversation.`;
-
             // 새로운 Conversation 문서 생성 및 저장
             conversation = new Conversation({
                 user_id: user._id,
@@ -78,10 +121,7 @@ exports.createNewConversation = async ({ email, mainTopic, subTopic, difficulty,
 
             await conversation.save();
 
-            // GPT의 첫 발화 생성
-            const gptResponse = await this.GPTResponse(initialPrompt, conversation._id, true);
-            console.log('GPT 첫 발화:', gptResponse);
-
+            return { conversationId: conversation._id };
         } else {
             console.log('기존 대화 사용:', conversation._id);
         }
@@ -172,7 +212,7 @@ exports.GPTResponse = async function (text, converseId, isInitial = false) {
             top_p: 0.9,
         });
 
-        const gptResponse = refineResponse(response.choices[0].message.content);
+        const gptResponse = response.choices[0].message.content;
 
         const userMessage = new Message({
             message_id: uuidv4(),
@@ -200,30 +240,6 @@ exports.GPTResponse = async function (text, converseId, isInitial = false) {
         console.error("GPT 대화 생성 중 에러:", error);
         throw error;
     }
-};
-
-const refineResponse = (response) => {
-    // 이모티콘 제거
-    let refined = response.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}]+/gu, '');
-
-    // 번호 제거 (예: 1., 2., 3.)
-    refined = refined.replace(/^\d+\.\s+/gm, '');
-
-    // 지나치게 공백이 많은 경우 정리
-    refined = refined.replace(/\s+/g, ' ').trim();
-
-    // 문장 단위로 나누기 (일반적으로 마침표, 느낌표, 물음표를 기준으로)
-    const sentences = refined.split(/(?<=[.!?])\s+/);
-    let result = '';
-    for (const sentence of sentences) {
-        // 150자를 넘지 않는 범위에서 문장을 추가
-        if ((result + sentence).length > 150) {
-            break;
-        }
-        result += (result ? ' ' : '') + sentence; // 문장 사이에 공백 추가
-    }
-
-    return result.length > 0 ? result + '...' : refined; // 결과 반환 (최대 150자를 초과하면 '...' 추가)
 };
 
 exports.generateTTS = async function (text) {
