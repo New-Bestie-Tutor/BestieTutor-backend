@@ -246,6 +246,7 @@ exports.generateTTS = async function (text) {
     try {
         const [response] = await TTS.synthesizeSpeech({
             input: { text },
+            // voice: { languageCode: 'en-US', ssmlGender: 'NEUTRAL' },
             voice: { languageCode: 'ko-KR', ssmlGender: 'NEUTRAL' },
             audioConfig: { audioEncoding: 'MP3' },
         });

@@ -205,3 +205,11 @@ exports.getUserByEmail = async (email) => {
         throw new Error('사용자 정보를 가져오는 데 실패했습니다.');
     }
 };
+
+exports.checkEmailDuplicate = async (email) => {
+    // 이미 존재하는 사용자 확인
+    const existingUser = await User.findOne({ email });
+    
+    // 이메일이 존재하면 true, 없으면 false
+    return existingUser ? true : false;
+};
