@@ -36,40 +36,33 @@ exports.generateInitialMessage = async ({ mainTopic, subTopic, difficulty, chara
             throw new Error(`"${difficulty}" 난이도에 해당하는 데이터를 찾을 수 없습니다.`);
         }
 
-        const detail = difficultyData;
-
         const character = await Character.findOne({ name: characterName });
         if (!character) {
             throw new Error('캐릭터를 찾을 수 없습니다.');
         }
 
-        // GPT에 보낼 프롬프트 생성
-        const messages = [
-            {
-                role: "system",
-                content: `You are acting as the character "${character.name}" with the following traits: Personality: ${character.personality}, Tone: ${character.tone}. Stay in character throughout the conversation.`,
-            },
-            {
-                role: "user",
-                content: `The conversation is about: Topic: ${mainTopic}, Subtopic: ${subTopic}, Difficulty: ${difficulty}, Detail: ${detail}. 
-                주제에 관한 발화를 3문장 이내로, 실제 사람과 대화하듯이 번호와 이모티콘 등은 넣지 말고 제공해`,
-            },
-        ];
+        // 공통 프롬프트
+        const messages = createPrompt({
+            mainTopic,
+            subTopic,
+            difficulty,
+            detail: difficultyData.detail,
+            character,
+        });
 
-        // GPT를 통해 첫 메시지 생성
+        // 첫 발화 생성
         const gptResponse = await openai.chat.completions.create({
             model: 'gpt-4o-mini',
             messages: messages,
             max_tokens: 150,
-            temperature: 0.7
+            temperature: 0.7,
+            top_p: 0.9,
         });
 
         const initialMessage = gptResponse.choices[0].message.content.trim();
         console.log('GPT Initial Message:', initialMessage);
 
-        return {
-            initialMessage
-        };
+        return { initialMessage };
     } catch (error) {
         console.error('초기 메시지 생성 중 에러:', error);
         throw error;
@@ -112,7 +105,6 @@ exports.createNewConversation = async ({ email, mainTopic, subTopic, difficulty,
                 throw new Error('해당 난이도를 찾을 수 없습니다.');
             }
 
-            // Character 조회
             const character = await Character.findOne({ name: characterName });
             if (!character) {
                 throw new Error('해당 Character를 찾을 수 없습니다.');
@@ -156,48 +148,6 @@ async function getConversationHistory(converseId) {
     }
 }
 
-// 메시지에 자동으로 피드백 추가
-async function generateFeedbackForMessage(messageId, userText) {
-    try {
-        const message = await Message.findOne({ message_id: messageId });
-        if (!message) {
-            throw new Error("Message not found.");
-        }
-
-        // 피드백 생성을 위한 prompt
-        const prompt = `You are a professional language tutor. Your task is to evaluate and provide feedback on the given user's message. 
-        Provide constructive feedback on grammar, vocabulary, sentence structure, and overall clarity. 
-        Offer suggestions for improvement where necessary.
-
-        User's message: "${userText}"`;
-
-        // 피드백 생성
-        const response = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
-            messages: [
-                { role: 'system', content: "You are a helpful assistant." },
-                { role: 'user', content: prompt }
-            ],
-        });
-
-        const feedbackContent = response.choices[0].message.content;
-
-        const newFeedback = new Feedback({
-            feedbackId: uuidv4(),
-            converse_id: message.converse_id,
-            message_id: messageId,
-            feedback: feedbackContent,
-            start_time: new Date(),
-        });
-
-        await newFeedback.save();
-        console.log(`Feedback added for messageId: ${messageId}`);
-    } catch (error) {
-        console.error('피드백 생성 중 에러:', error);
-    }
-}
-
-
 // GPT와 대화하고 응답을 저장
 exports.GPTResponse = async function (text, converseId, isInitial = false) {
     try {
@@ -210,12 +160,20 @@ exports.GPTResponse = async function (text, converseId, isInitial = false) {
             conversationHistory.push({ role: 'user', content: text });
         }
 
+        const messages = createPrompt({
+            mainTopic,
+            subTopic,
+            difficulty,
+            detail: difficultyData.detail,
+            character,
+        });
+
         // OpenAI API에 메시지 전송
         const response = await openai.chat.completions.create({
             model: 'gpt-4o-mini',
             messages: conversationHistory,
             temperature: 0.7,
-            max_tokens: 200,
+            max_tokens: 150,
             top_p: 0.9,
         });
 
@@ -248,6 +206,63 @@ exports.GPTResponse = async function (text, converseId, isInitial = false) {
         throw error;
     }
 };
+
+
+// 공통 프롬프트 생성 함수
+const createPrompt = ({ mainTopic, subTopic, difficulty, detail, character }) => {
+    return [
+        {
+            role: "system",
+            content: `You are acting as the character "${character.name}" with the following traits: Personality: ${character.personality}, Tone: ${character.tone}. Stay in character throughout the conversation.`,
+        },
+        {
+            role: "user",
+            content: `The conversation is about: Topic: ${mainTopic}, Subtopic: ${subTopic}, Difficulty: ${difficulty}, Detail: ${detail}. 
+            ${detail}에서 서술한 역할을 철저하게 지키고, 주제에 관한 대화를 3문장 이내로, 실제 사람과 대화하듯이 번호와 이모티콘 등은 넣지 말고 제공해`,
+        },
+    ];
+};
+
+// 메시지에 자동으로 피드백 추가
+async function generateFeedbackForMessage(messageId, userText) {
+    try {
+        const message = await Message.findOne({ message_id: messageId });
+        if (!message) {
+            throw new Error("Message not found.");
+        }
+
+        // 피드백 생성을 위한 prompt
+        const prompt = `You are a professional language tutor. Your task is to evaluate and provide feedback on the given user's message. 
+        Provide constructive feedback on grammar, vocabulary, sentence structure, and overall clarity. 
+        Offer suggestions for improvement where necessary. 피드백은 한 문장으로 제한해.
+
+        User's message: "${userText}"`;
+
+        // 피드백 생성
+        const response = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [
+                { role: 'system', content: "You are a helpful assistant." },
+                { role: 'user', content: prompt }
+            ],
+        });
+
+        const feedbackContent = response.choices[0].message.content;
+
+        const newFeedback = new Feedback({
+            feedbackId: uuidv4(),
+            converse_id: message.converse_id,
+            message_id: messageId,
+            feedback: feedbackContent,
+            start_time: new Date(),
+        });
+
+        await newFeedback.save();
+        console.log(`Feedback added for messageId: ${messageId}`);
+    } catch (error) {
+        console.error('피드백 생성 중 에러:', error);
+    }
+}
 
 exports.generateTTS = async function (text) {
     try {
