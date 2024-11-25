@@ -31,6 +31,13 @@ exports.generateInitialMessage = async ({ mainTopic, subTopic, difficulty, chara
             throw new Error('하위 토픽을 찾을 수 없습니다.');
         }
 
+        const difficultyData = subTopicData.difficulties.find(diff => diff.difficulty === difficulty);
+        if (!difficultyData) {
+            throw new Error(`"${difficulty}" 난이도에 해당하는 데이터를 찾을 수 없습니다.`);
+        }
+
+        const detail = difficultyData;
+
         const character = await Character.findOne({ name: characterName });
         if (!character) {
             throw new Error('캐릭터를 찾을 수 없습니다.');
@@ -44,7 +51,7 @@ exports.generateInitialMessage = async ({ mainTopic, subTopic, difficulty, chara
             },
             {
                 role: "user",
-                content: `The conversation is about: Topic: ${mainTopic}, Subtopic: ${subTopic}, Difficulty: ${difficulty}. 
+                content: `The conversation is about: Topic: ${mainTopic}, Subtopic: ${subTopic}, Difficulty: ${difficulty}, Detail: ${detail}. 
                 주제에 관한 발화를 3문장 이내로, 실제 사람과 대화하듯이 번호와 이모티콘 등은 넣지 말고 제공해`,
             },
         ];
