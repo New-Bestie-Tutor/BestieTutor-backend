@@ -5,7 +5,7 @@ const feedbackController = require('../controllers/feedbackController');
 
 router.post('/getResponse', conversationController.getResponse);
 
-router.get('/getConversationHistory/:email', conversationController.getConversationHistory);
+router.post('/initialize', conversationController.initializeConversation);
 
 router.post('/addFeedback', feedbackController.addFeedback);
 

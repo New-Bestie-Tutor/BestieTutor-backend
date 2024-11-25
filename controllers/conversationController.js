@@ -2,50 +2,37 @@ const axios = require('axios');
 const conversationService = require('../services/conversationService');
 const Topic = require('../models/Topic');
 const Character = require('../models/Character');
-const Conversation = require('../models/Conversation');
 
-// 대화 기록 조회
-exports.getConversationHistory = async (req, res) => {
+// 첫 발화
+exports.initializeConversation = async (req, res) => {
     try {
-        const { email } = req.params;
+        const { mainTopic, subTopic, difficulty, characterName } = req.body;
 
-        // 대화 데이터 조회
-        const conversations = await Conversation.find({ email }).sort({ start_time: -1 });
-        if (conversations.length === 0) {
-            return res.status(404).json({ message: '해당 사용자의 대화를 찾을 수 없습니다.' });
+        if (!mainTopic || !subTopic || !difficulty || !characterName) {
+            return res.status(400).json({ message: '필수 데이터가 누락되었습니다.' });
         }
 
-        // 각 대화에 포함된 메시지와 피드백 데이터 추가
-        const conversationDetails = await Promise.all(
-            conversations.map(async (conversation) => {
-                const messages = await Message.find({ converse_id: conversation._id }).sort({ input_date: 1 });
-                const feedbacks = await Feedback.find({ converse_id: conversation._id });
+        // 초기 메시지 생성
+        const { initialMessage } = await conversationService.generateInitialMessage({
+            mainTopic,
+            subTopic,
+            difficulty,
+            characterName
+        });
 
-                return {
-                    conversationId: conversation._id,
-                    topicDescription: conversation.topic_description,
-                    startTime: conversation.start_time,
-                    endTime: conversation.end_time,
-                    messages: messages.map(message => ({
-                        messageId: message.message_id,
-                        content: message.message,
-                        type: message.message_type,
-                        inputDate: message.input_date
-                    })),
-                    feedbacks: feedbacks.map(feedback => ({
-                        feedbackId: feedback._id,
-                        messageId: feedback.message_id,
-                        content: feedback.feedback,
-                        startTime: feedback.start_time
-                    }))
-                };
-            })
-        );
+        // TTS 변환
+        const audioBuffer = await conversationService.generateTTS(initialMessage);
 
-        res.status(200).json({ conversations: conversationDetails });
+        // 응답 전송
+        return res.status(200).json({
+            message: '대화 초기화 성공',
+            gptResponse: initialMessage,
+            audio: audioBuffer.toString('base64') // Base64로 인코딩된 음성 데이터
+        });
+
     } catch (error) {
-        console.error('대화 기록 조회 중 에러:', error);
-        res.status(500).json({ message: '대화 기록 조회 중 에러' });
+        console.error('대화 초기화 중 오류:', error);
+        return res.status(500).json({ message: '서버 오류가 발생했습니다.' });
     }
 };
 
