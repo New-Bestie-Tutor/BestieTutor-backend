@@ -149,21 +149,48 @@ async function getConversationHistory(converseId) {
 }
 
 // GPT와 대화하고 응답을 저장
-exports.GPTResponse = async function (text, converseId, isInitial = false) {
+exports.GPTResponse = async function (text, converseId, options = {}, isInitial = false) {
+    const { mainTopic, subTopic, difficulty, character } = options;
     try {
         // 대화 내역 가져오기
         const conversationHistory = await getConversationHistory(converseId);
 
-        if (isInitial) {
-            conversationHistory.push({ role: 'system', content: text });
-        } else {
-            conversationHistory.push({ role: 'user', content: text });
+        const topic = await Topic.findOne({ mainTopic });
+        if (!topic) {
+            throw new Error('토픽을 찾을 수 없습니다.');
         }
+
+        const subTopicData = topic.subTopics.find(sub => sub.name === subTopic);
+        if (!subTopicData) {
+            throw new Error('하위 토픽을 찾을 수 없습니다.');
+        }
+
+        const difficultyData = subTopicData.difficulties.find(diff => diff.difficulty === difficulty);
+        if (!difficultyData){
+            throw new Error(`"${difficulty}" 난이도에 해당하는 데이터를 찾을 수 없습니다.`);
+        } 
+
+        const systemPrompt = createPrompt({
+            mainTopic,
+            subTopic,
+            difficulty,
+            detail: difficultyData.detail,
+            character,
+        });
+
+        if (!isInitial) {
+            systemPrompt.push({
+                role: 'user',
+                content: text,
+            });
+        }
+
+        const messages = [...systemPrompt, ...conversationHistory];
 
         // OpenAI API에 메시지 전송
         const response = await openai.chat.completions.create({
             model: 'gpt-4o-mini',
-            messages: conversationHistory,
+            messages: messages,
             temperature: 0.7,
             max_tokens: 150,
             top_p: 0.9,
@@ -208,7 +235,7 @@ const createPrompt = ({ mainTopic, subTopic, difficulty, detail, character }) =>
             content: `You are acting as the character "${character.name}" with the following traits: Personality: ${character.personality}, Tone: ${character.tone}. Stay in character throughout the conversation.`,
         },
         {
-            role: "user",
+            role: "assistant",
             content: `The conversation is about: Topic: ${mainTopic}, Subtopic: ${subTopic}, Difficulty: ${difficulty}, Detail: ${detail}. 
             ${detail}에서 서술한 역할을 철저하게 지키고, 주제에 관한 대화를 3문장 이내로, 실제 사람과 대화하듯이 번호와 이모티콘 등은 넣지 말고 제공해`,
         },

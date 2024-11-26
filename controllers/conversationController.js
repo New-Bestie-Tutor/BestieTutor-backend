@@ -85,7 +85,7 @@ exports.getResponse = async (req, res) => {
         }
 
         // GPT 응답 생성
-        const gptResponse = await conversationService.GPTResponse(text, conversationId);
+        const gptResponse = await conversationService.GPTResponse(text, conversationId, { mainTopic, subTopic, difficulty, character: characterName });
 
         // TTS 변환 후 텍스트와 음성 데이터 함께 응답
         const audioBuffer = await conversationService.generateTTS(gptResponse);
