@@ -8,6 +8,7 @@ const subTopicDifficultySchema = new mongoose.Schema({
         required: true,
     },
     description: { type: String, required: true }, // 난이도에 대한 설명
+    detail: { type: String, required: true },
 });
 
 // 소주제 스키마
