@@ -1,16 +1,25 @@
 const axios = require('axios');
 const conversationService = require('../services/conversationService');
+const User = require('../models/User');
 const Topic = require('../models/Topic');
 const Character = require('../models/Character');
 const Conversation = require('../models/Conversation');
+const Message = require('../models/Message');
+const Feedback = require('../models/Feedback');
 
 // 대화 기록 조회
 exports.getConversationHistory = async (req, res) => {
     try {
         const { email } = req.params;
 
-        // 대화 데이터 조회
-        const conversations = await Conversation.find({ email }).sort({ start_time: -1 });
+        // 사용자 조회
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ message: '해당 이메일의 사용자를 찾을 수 없습니다.' });
+        }
+
+        // userId로 대화 데이터 조회
+        const conversations = await Conversation.find({ user_id: user._id }).sort({ start_time: -1 });
         if (conversations.length === 0) {
             return res.status(404).json({ message: '해당 사용자의 대화를 찾을 수 없습니다.' });
         }
