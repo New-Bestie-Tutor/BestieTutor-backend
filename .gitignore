@@ -131,6 +131,7 @@ web_modules/
 .env.production.local
 .env.local
 bestie-tutor-a5d3a76c159a.json
+bestietutor-4dce9691addf.json
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
