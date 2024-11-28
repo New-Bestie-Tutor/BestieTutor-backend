@@ -18,6 +18,58 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
 });
 
+exports.generateInitialMessage = async ({ mainTopic, subTopic, difficulty, characterName }) => {
+    try {
+        // 토픽과 캐릭터 데이터 확인
+        const topic = await Topic.findOne({ mainTopic });
+        if (!topic) {
+            throw new Error('토픽을 찾을 수 없습니다.');
+        }
+
+        const subTopicData = topic.subTopics.find(sub => sub.name === subTopic);
+        if (!subTopicData) {
+            throw new Error('하위 토픽을 찾을 수 없습니다.');
+        }
+
+        const difficultyData = subTopicData.difficulties.find(diff => diff.difficulty === difficulty);
+        if (!difficultyData) {
+            throw new Error(`"${difficulty}" 난이도에 해당하는 데이터를 찾을 수 없습니다.`);
+        }
+
+        const character = await Character.findOne({ name: characterName });
+        if (!character) {
+            throw new Error('캐릭터를 찾을 수 없습니다.');
+        }
+
+        // 공통 프롬프트
+        const messages = createPrompt({
+            mainTopic,
+            subTopic,
+            difficulty,
+            detail: difficultyData.detail,
+            character,
+        });
+
+        // 첫 발화 생성
+        const gptResponse = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: messages,
+            max_tokens: 150,
+            temperature: 0.7,
+            top_p: 0.9,
+        });
+
+        const initialMessage = gptResponse.choices[0].message.content.trim();
+        console.log('GPT Initial Message:', initialMessage);
+
+        return { initialMessage };
+    } catch (error) {
+        console.error('초기 메시지 생성 중 에러:', error);
+        throw error;
+    }
+};
+
+
 // 새로운 대화 생성
 exports.createNewConversation = async ({ email, mainTopic, subTopic, difficulty, characterName }) => {
     try {
@@ -38,45 +90,40 @@ exports.createNewConversation = async ({ email, mainTopic, subTopic, difficulty,
                 mainTopic,
                 'subTopics.name': subTopic
             });
-        
-        if (!topic) {
-            console.log(`Topic not found for mainTopic: ${mainTopic}, subTopic: ${subTopic}`);
-            throw new Error('해당 Topic을 찾을 수 없습니다.');
-        }
 
-        const subTopicData = topic.subTopics.find(st => st.name === subTopic);
-        if (!subTopicData) {
-            throw new Error('해당 SubTopic을 찾을 수 없습니다.');
-        }
+            if (!topic) {
+                throw new Error('해당 Topic을 찾을 수 없습니다.');
+            }
 
-        const difficultyData = subTopicData.difficulties.find(d => d.difficulty === difficulty);
-        if (!difficultyData) {
-            throw new Error('해당 난이도를 찾을 수 없습니다.');
-        }
+            const subTopicData = topic.subTopics.find(st => st.name === subTopic);
+            if (!subTopicData) {
+                throw new Error('해당 SubTopic을 찾을 수 없습니다.');
+            }
 
-        // Character 조회
-        const character = await Character.findOne({ name: characterName });
-        if (!character) {
-            throw new Error('해당 Character를 찾을 수 없습니다.');
+            const difficultyData = subTopicData.difficulties.find(d => d.difficulty === difficulty);
+            if (!difficultyData) {
+                throw new Error('해당 난이도를 찾을 수 없습니다.');
+            }
+
+            const character = await Character.findOne({ name: characterName });
+            if (!character) {
+                throw new Error('해당 Character를 찾을 수 없습니다.');
+            }
+
+            // 새로운 Conversation 문서 생성 및 저장
+            conversation = new Conversation({
+                user_id: user._id,
+                topic_description: `${mainTopic} - ${subTopic} - ${difficulty}`,
+                start_time: new Date(),
+                end_time: null // 대화가 끝날 때 업데이트
+            })
+
+            await conversation.save();
+
+            return { conversationId: conversation._id };
+        } else {
+            console.log('기존 대화 사용:', conversation._id);
         }
-    
-        const prompt = `Starting conversation in the topic of ${mainTopic}, focusing on ${subTopic} at ${difficulty} difficulty. 
-        The character is ${character.name}, with ${character.appearance} appearance, ${character.personality} personality, and ${character.tone} tone.`;
-        
-        // 새로운 Conversation 문서 생성 및 저장
-        conversation = new Conversation({
-            user_id: user._id,
-            topic_description: `${mainTopic} - ${subTopic} - ${difficulty}`,
-            start_time: new Date(),
-            end_time: null // 대화가 끝날 때 업데이트
-        })
-        
-        await conversation.save();
-        
-        console.log('생성된 대화 ID:', conversation._id);
-    } else {
-        console.log('기존 대화 사용:', conversation._id);
-    }
         return { conversationId: conversation._id }; // 새롭게 생성된 converseId 반환
     } catch (error) {
         console.error('대화 생성 중 에러:', error);
@@ -101,6 +148,99 @@ async function getConversationHistory(converseId) {
     }
 }
 
+// GPT와 대화하고 응답을 저장
+exports.GPTResponse = async function (text, converseId, options = {}, isInitial = false) {
+    const { mainTopic, subTopic, difficulty, character } = options;
+    try {
+        // 대화 내역 가져오기
+        const conversationHistory = await getConversationHistory(converseId);
+
+        const topic = await Topic.findOne({ mainTopic });
+        if (!topic) {
+            throw new Error('토픽을 찾을 수 없습니다.');
+        }
+
+        const subTopicData = topic.subTopics.find(sub => sub.name === subTopic);
+        if (!subTopicData) {
+            throw new Error('하위 토픽을 찾을 수 없습니다.');
+        }
+
+        const difficultyData = subTopicData.difficulties.find(diff => diff.difficulty === difficulty);
+        if (!difficultyData){
+            throw new Error(`"${difficulty}" 난이도에 해당하는 데이터를 찾을 수 없습니다.`);
+        } 
+
+        const systemPrompt = createPrompt({
+            mainTopic,
+            subTopic,
+            difficulty,
+            detail: difficultyData.detail,
+            character,
+        });
+
+        if (!isInitial) {
+            systemPrompt.push({
+                role: 'user',
+                content: text,
+            });
+        }
+
+        const messages = [...systemPrompt, ...conversationHistory];
+
+        // OpenAI API에 메시지 전송
+        const response = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: messages,
+            temperature: 0.7,
+            max_tokens: 150,
+            top_p: 0.9,
+        });
+
+        const gptResponse = response.choices[0].message.content;
+
+        const userMessage = new Message({
+            message_id: uuidv4(),
+            converse_id: converseId,
+            message: text,
+            message_type: 'USER',
+            input_date: new Date()
+        });
+        await userMessage.save();
+
+        const botMessage = new Message({
+            message_id: uuidv4(),
+            converse_id: converseId,
+            message: gptResponse,
+            message_type: 'BOT',
+            input_date: new Date()
+        });
+        await botMessage.save();
+
+        // User 메시지에 대한 피드백 생성
+        await generateFeedbackForMessage(userMessage.message_id, text);
+
+        return gptResponse;
+    } catch (error) {
+        console.error("GPT 대화 생성 중 에러:", error);
+        throw error;
+    }
+};
+
+
+// 공통 프롬프트 생성 함수
+const createPrompt = ({ mainTopic, subTopic, difficulty, detail, character }) => {
+    return [
+        {
+            role: "system",
+            content: `You are acting as the character "${character.name}" with the following traits: Personality: ${character.personality}, Tone: ${character.tone}. Stay in character throughout the conversation.`,
+        },
+        {
+            role: "assistant",
+            content: `The conversation is about: Topic: ${mainTopic}, Subtopic: ${subTopic}, Difficulty: ${difficulty}, Detail: ${detail}. 
+            ${detail}에서 서술한 역할을 철저하게 지키고, 주제에 관한 대화를 3문장 이내로, 실제 사람과 대화하듯이 번호와 이모티콘 등은 넣지 말고 제공해`,
+        },
+    ];
+};
 
 // 메시지에 자동으로 피드백 추가
 async function generateFeedbackForMessage(messageId, userText) {
@@ -109,15 +249,13 @@ async function generateFeedbackForMessage(messageId, userText) {
         if (!message) {
             throw new Error("Message not found.");
         }
-        
-        // 피드백 생성을 위한 prompt
-        const prompt = `
-You are a professional language tutor. Your task is to evaluate and provide feedback on the given user's message. 
-Provide constructive feedback on grammar, vocabulary, sentence structure, and overall clarity. 
-Offer suggestions for improvement where necessary. Your response should be under 200 characters.
-[중요] 단, 나한테는 한글로 말해줘. 그런데 추천 문장은 영어로 해줘야해.
 
-User's message: "${userText}"`;
+        // 피드백 생성을 위한 prompt
+        const prompt = `You are a professional language tutor. Your task is to evaluate and provide feedback on the given user's message. 
+        Provide constructive feedback on grammar, vocabulary, sentence structure, and overall clarity. 
+        Offer suggestions for improvement where necessary. 피드백은 한 문장으로 제한해.
+
+        User's message: "${userText}"`;
 
         // 피드백 생성
         const response = await openai.chat.completions.create({
@@ -206,7 +344,8 @@ exports.generateTTS = async function (text) {
     try {
         const [response] = await TTS.synthesizeSpeech({
             input: { text },
-            voice: { languageCode: 'en-US', ssmlGender: 'NEUTRAL' },
+            // voice: { languageCode: 'en-US', ssmlGender: 'NEUTRAL' },
+            voice: { languageCode: 'ko-KR', ssmlGender: 'NEUTRAL' },
             audioConfig: { audioEncoding: 'MP3' },
         });
 

@@ -191,3 +191,15 @@ exports.getUserId = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
+
+//이메일 중복 확인
+exports.checkEmailDuplicate = async (req, res) => {
+    const { email } = req.body;
+    try {
+        const isDuplicate = await userService.checkEmailDuplicate(email);
+        return res.status(201).json({ isDuplicate });
+    } catch (error) {
+        console.error(error);
+        res.status(400).json({ message: error.message });
+    }
+};
