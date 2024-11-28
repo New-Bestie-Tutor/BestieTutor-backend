@@ -4,8 +4,10 @@ const conversationController = require('../controllers/conversationController');
 
 router.post('/getResponse', conversationController.getResponse);
 
-router.get('/getConversationHistory/:email', conversationController.getConversationHistory);
+router.post('/initialize', conversationController.initializeConversation);
 
 router.post('/addUserMessage', conversationController.addUserMessage);
+
+router.get('/getConversationHistory/:email', conversationController.getConversationHistory);
 
 module.exports = router;
