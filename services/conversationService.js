@@ -8,7 +8,7 @@ const User = require('../models/User');
 const Feedback = require('../models/Feedback');
 const { TextToSpeechClient } = require('@google-cloud/text-to-speech');
 
-
+require('dotenv').config(); // .env 파일 로드
 
 const TTS = new TextToSpeechClient({
     keyFilename: process.env.GOOGLE_API_KEY
@@ -282,6 +282,63 @@ async function generateFeedbackForMessage(messageId, userText) {
         console.error('피드백 생성 중 에러:', error);
     }
 }
+
+exports.addUserMessage = async function (text, converseId) {
+    const userMessage = new Message({
+        message_id: uuidv4(),
+        converse_id: converseId,
+        message: text,
+        message_type: 'USER',
+        input_date: new Date()
+    });
+    await userMessage.save();
+
+    return {
+        messageId: userMessage.message_id // 사용자 메시지 ID 반환
+    };
+}
+
+exports.generateFeedbackForMessage = async function (messageId, text) {
+    // User 메시지에 대한 피드백 생성
+    await generateFeedbackForMessage(messageId, text);
+}
+
+// GPT와 대화하고 응답을 저장
+exports.GPTResponse = async function (text, converseId) {
+    try {
+        // 대화 내역 가져오기
+        let conversationHistory = await getConversationHistory(converseId);
+        conversationHistory = [...conversationHistory, { role: 'user', content: text }]; // user 메시지 추가
+
+        console.log("Conversation history being sent to OpenAI:", JSON.stringify(conversationHistory, null, 2));
+        // OpenAI API에 메시지 전송
+        const response = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: conversationHistory,
+            temperature: 0.7,
+            max_tokens: 200,
+            top_p: 0.9,
+        });
+
+        const gptResponse = response.choices[0].message.content;
+
+        const botMessage = new Message({
+            message_id: uuidv4(),
+            converse_id: converseId,
+            message: gptResponse,
+            message_type: 'BOT',
+            input_date: new Date()
+        });
+        await botMessage.save();
+
+        return {
+            gptResponse
+        };
+    } catch (error) {
+        console.error("GPT 대화 생성 중 에러:", error);
+        throw error;
+    }
+};
 
 exports.generateTTS = async function (text) {
     try {
