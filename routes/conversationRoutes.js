@@ -1,12 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const conversationController = require('../controllers/conversationController');
-const feedbackController = require('../controllers/feedbackController');
 
 router.post('/getResponse', conversationController.getResponse);
 
 router.post('/initialize', conversationController.initializeConversation);
 
-router.post('/addFeedback', feedbackController.addFeedback);
+router.post('/addUserMessage', conversationController.addUserMessage);
+
+router.get('/getConversationHistory/:email', conversationController.getConversationHistory);
 
 module.exports = router;
