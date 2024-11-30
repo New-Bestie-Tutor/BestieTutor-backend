@@ -8,6 +8,6 @@ router.post('/initialize', conversationController.initializeConversation);
 
 router.post('/addUserMessage', conversationController.addUserMessage);
 
-router.get('/getConversationHistory/:email', conversationController.getConversationHistory);
+router.get('/getAllConversations/:email', conversationController.getAllConversations);
 
 module.exports = router;

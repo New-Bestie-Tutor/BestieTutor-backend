@@ -131,8 +131,8 @@ exports.createNewConversation = async ({ email, mainTopic, subTopic, difficulty,
     }
 }
 
-// 대화 내역을 MongoDB에서 불러오기
-async function getConversationHistory(converseId) {
+// 전체 대화 내역을 MongoDB에서 불러오기
+async function getAllConversations(converseId) {
     try {
         // converse_id가 converseId와 일치하는 메시지들을 날짜 순서로 정렬하여 불러와 messages에 저장
         const messages = await Message.find({ converse_id: converseId }).sort({ input_date: 1 });
@@ -153,7 +153,7 @@ exports.GPTResponse = async function (text, converseId, options = {}, isInitial 
     const { mainTopic, subTopic, difficulty, character } = options;
     try {
         // 대화 내역 가져오기
-        const conversationHistory = await getConversationHistory(converseId);
+        const conversationHistory = await getAllConversations(converseId);
 
         const topic = await Topic.findOne({ mainTopic });
         if (!topic) {
@@ -307,7 +307,7 @@ exports.generateFeedbackForMessage = async function (messageId, text) {
 exports.GPTResponse = async function (text, converseId) {
     try {
         // 대화 내역 가져오기
-        let conversationHistory = await getConversationHistory(converseId);
+        let conversationHistory = await getAllConversations(converseId);
         conversationHistory = [...conversationHistory, { role: 'user', content: text }]; // user 메시지 추가
 
         console.log("Conversation history being sent to OpenAI:", JSON.stringify(conversationHistory, null, 2));

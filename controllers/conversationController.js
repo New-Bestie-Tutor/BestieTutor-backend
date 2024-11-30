@@ -40,8 +40,8 @@ exports.initializeConversation = async (req, res) => {
     }
 };
 
-// 대화 기록 조회
-exports.getConversationHistory = async (req, res) => {
+// 전체 대화 기록 조회
+exports.getAllConversations = async (req, res) => {
     try {
         const { email } = req.params;
 
