@@ -10,4 +10,6 @@ router.post('/addUserMessage', conversationController.addUserMessage);
 
 router.get('/getAllConversations/:email', conversationController.getAllConversations);
 
+router.get('/getConversationById/:converse_id', conversationController.getConversationById);
+
 module.exports = router;
