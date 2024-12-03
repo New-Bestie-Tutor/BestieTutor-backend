@@ -176,7 +176,7 @@ exports.getUser = async(req, res) => {
 };
 
 // 특정 사용자의 정보 반환
-exports.getUserId = async (req, res) => {
+exports.getUserInfo = async (req, res) => {
     const token = req.cookies.token;
 
     if (!token) {
@@ -184,8 +184,8 @@ exports.getUserId = async (req, res) => {
     }
 
     try {
-        const userId = await userService.getUserByToken(token); 
-        res.status(201).json({ message: 'userId 조회 성공', userId: userId });
+        const userInfo = await userService.getUserByToken(token); 
+        res.status(201).json({ message: 'userId 조회 성공', userInfo: userInfo });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: error.message });

@@ -39,7 +39,7 @@ router.post('/interests', userController.userInterest);
 router.get('/getUser', userController.getUser);
 
 // userId 조회
-router.get('/getUserId', userController.getUserId);
+router.get('/getUserInfo', userController.getUserInfo);
 
 //로그인유지
 router.get('/profile', userController.profile);
