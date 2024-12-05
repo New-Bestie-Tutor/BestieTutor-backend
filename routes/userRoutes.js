@@ -38,7 +38,7 @@ router.post('/interests', userController.userInterest);
 // 사용자 정보 조회
 router.get('/getUser', userController.getUser);
 
-// userId 조회
+// 토큰으로 user 정보 조회
 router.get('/getUserInfo', userController.getUserInfo);
 
 //로그인유지
