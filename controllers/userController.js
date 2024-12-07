@@ -4,6 +4,9 @@ const dotenv = require('dotenv');
 const jwt = require('jsonwebtoken');
 dotenv.config();
 
+const HOME_URL = '/home';
+const LANGUAGE_URL = '/chooseLanguage';
+
 exports.kakaoLogin = (req, res) => {
     const clientId = process.env.KAKAO_CLIENT_ID;
     const redirectUri = process.env.KAKAO_CALLBACK_URL;
@@ -20,25 +23,42 @@ exports.kakaoCallback = async (req, res) => {
     }
 
     try {
-        // userService의 kakaoLogin을 호출하여 JWT 토큰 받기
-        const token = await userService.kakaoLogin(code);
-        const user = await userService.getUserByToken(token); 
+        const { accessToken, refreshToken } = await userService.kakaoLogin(code);
 
-        // JWT 토큰을 쿠키에 설정
-        res.cookie('token', token, {
+        res.cookie('refreshToken', refreshToken, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production', // production 환경에서만 secure 옵션 활성화
-            maxAge: 3600000, // 1시간 (3600초 * 1000 밀리초)
+            secure: process.env.NODE_ENV === 'production', 
+            maxAge: 14 * 24 * 60 * 60 * 100, // 2주
         });
 
-        if (user.preferenceCompleted) {
-            return res.redirect('http://localhost:5173/home');
-        } else {
-            return res.redirect('http://localhost:5173/chooseLanguage');
+        const user = await userService.getUserByToken(accessToken);
+        if (!user) {
+            return res.status(404).json({ message: '사용자를 찾을 수 없습니다.' });
         }
+
+        res.status(200).json({
+            accessToken: accessToken,
+            redirectUrl: user.preferenceCompleted ? HOME_URL : LANGUAGE_URL,
+        });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: error.message });
+    }
+};
+
+exports.refreshToken = async (req, res) => {
+    const refreshToken = req.cookies.refreshToken;
+
+    if (!refreshToken) {
+        return res.status(401).json({ message: 'Refresh token is missing'});
+    }
+
+    try {
+        const { accessToken } = await userService.refreshToken(refreshToken);
+        res.status(200).json({ accessToken });
+    } catch (error) {
+        console.error(error);
+        res.status(403).json({ message: error.message });
     }
 };
 
@@ -58,10 +78,18 @@ exports.login = async (req, res) => {
     const { email, password } = req.body;
 
     try {
-        const token = await userService.login(email, password);
-        const user = await userService.getUserByEmail(email);
+        const { accessToken, refreshToken } = await userService.login(email, password);
 
-        res.cookie('token', token, { httpOnly: true, secure: true, maxAge: 3600000 });
+        res.cookie('refreshToken', refreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            maxAge: 14 * 24 * 60 * 60 * 1000, // 14일
+        });
+
+        const user = await userService.getUserByToken(accessToken);
+        if (!user) {
+            return res.status(404).json({ message: '사용자를 찾을 수 없습니다.' });
+        }
 
         const redirectUrl = user.preferenceCompleted
             ? '/home'
@@ -74,23 +102,20 @@ exports.login = async (req, res) => {
     }
 };
 
-exports.profile = async (req, res) => {
-    const token = req.cookies.token || req.headers.authorization?.split(" ")[1];
-    const secret = process.env.JWT_SECRET; 
+exports.profile = (req, res) => {
+    const user = req.user;
+    console.log(user);
 
-    if (!token) {
-        return res.status(401).json({ message: 'No token provided' });
+    if (!user) {
+        return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    jwt.verify(token, secret, (err, decoded) => {
-        if (err) {
-            console.error("Token verification failed:", err);
-            return res.status(403).json({ message: 'Failed to authenticate token' });
-        }
-        res.json(decoded); 
+    res.status(200).json({
+        userId: user.userId,
+        email: user.email,
+        message: 'Profile fetched successfully',
     });
 };
-
 
 exports.logout = (req, res) => {
     res.clearCookie('token', { httpOnly: true, secure: true });
@@ -192,7 +217,7 @@ exports.getUserId = async (req, res) => {
     }
 };
 
-//이메일 중복 확인
+// 이메일 중복 확인
 exports.checkEmailDuplicate = async (req, res) => {
     const { email } = req.body;
     try {

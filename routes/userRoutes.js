@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/userController');
+const { authMiddleware } = require('../middlewares/authMiddleware');
 
 // 회원가입
 router.post('/', userController.register);
@@ -41,8 +42,8 @@ router.get('/getUser', userController.getUser);
 // userId 조회
 router.get('/getUserId', userController.getUserId);
 
-//로그인유지
-router.get('/profile', userController.profile);
+// 인증이 필요한 경로
+router.get('/profile', authMiddleware, userController.profile);
 
 //이메일 중복 확인
 router.post('/checkEmailDuplicate', userController.checkEmailDuplicate);
