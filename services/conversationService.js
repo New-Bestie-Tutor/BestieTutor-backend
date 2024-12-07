@@ -114,6 +114,7 @@ exports.createNewConversation = async ({ email, mainTopic, subTopic, difficulty,
             conversation = new Conversation({
                 user_id: user._id,
                 topic_description: `${mainTopic} - ${subTopic} - ${difficulty}`,
+                description: difficultyData.description,
                 start_time: new Date(),
                 end_time: null // 대화가 끝날 때 업데이트
             })

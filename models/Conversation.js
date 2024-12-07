@@ -6,6 +6,7 @@ const conversationSchema = new mongoose.Schema({
     start_time: { type: Date, required: true },
     end_time: { type: Date, default: null },
     topic_description: { type: String, required: true, ref: 'Topic' }, // Topic 모델과 연결
+    description: { type: String, required: true },
 }, { timestamps: true });
 
 const Conversation = mongoose.model('Conversation', conversationSchema);
