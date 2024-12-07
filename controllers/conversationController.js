@@ -68,6 +68,7 @@ exports.getConversationHistory = async (req, res) => {
                     topicDescription: conversation.topic_description,
                     startTime: conversation.start_time,
                     endTime: conversation.end_time,
+                    description: conversation.description,
                     messages: messages.map(message => ({
                         messageId: message.message_id,
                         content: message.message,
