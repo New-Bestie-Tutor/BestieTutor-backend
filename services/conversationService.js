@@ -132,7 +132,7 @@ exports.createNewConversation = async ({ email, mainTopic, subTopic, difficulty,
     }
 }
 
-// 대화 내역을 MongoDB에서 불러오기
+// 전체 대화 내역을 MongoDB에서 불러오기
 async function getConversationHistory(converseId) {
     try {
         // converse_id가 converseId와 일치하는 메시지들을 날짜 순서로 정렬하여 불러와 messages에 저장
@@ -149,85 +149,6 @@ async function getConversationHistory(converseId) {
     }
 }
 
-// GPT와 대화하고 응답을 저장
-exports.GPTResponse = async function (text, converseId, options = {}, isInitial = false) {
-    const { mainTopic, subTopic, difficulty, character } = options;
-    try {
-        // 대화 내역 가져오기
-        const conversationHistory = await getConversationHistory(converseId);
-
-        const topic = await Topic.findOne({ mainTopic });
-        if (!topic) {
-            throw new Error('토픽을 찾을 수 없습니다.');
-        }
-
-        const subTopicData = topic.subTopics.find(sub => sub.name === subTopic);
-        if (!subTopicData) {
-            throw new Error('하위 토픽을 찾을 수 없습니다.');
-        }
-
-        const difficultyData = subTopicData.difficulties.find(diff => diff.difficulty === difficulty);
-        if (!difficultyData){
-            throw new Error(`"${difficulty}" 난이도에 해당하는 데이터를 찾을 수 없습니다.`);
-        } 
-
-        const systemPrompt = createPrompt({
-            mainTopic,
-            subTopic,
-            difficulty,
-            detail: difficultyData.detail,
-            character,
-        });
-
-        if (!isInitial) {
-            systemPrompt.push({
-                role: 'user',
-                content: text,
-            });
-        }
-
-        const messages = [...systemPrompt, ...conversationHistory];
-
-        // OpenAI API에 메시지 전송
-        const response = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
-            messages: messages,
-            temperature: 0.7,
-            max_tokens: 150,
-            top_p: 0.9,
-        });
-
-        const gptResponse = response.choices[0].message.content;
-
-        const userMessage = new Message({
-            message_id: uuidv4(),
-            converse_id: converseId,
-            message: text,
-            message_type: 'USER',
-            input_date: new Date()
-        });
-        await userMessage.save();
-
-        const botMessage = new Message({
-            message_id: uuidv4(),
-            converse_id: converseId,
-            message: gptResponse,
-            message_type: 'BOT',
-            input_date: new Date()
-        });
-        await botMessage.save();
-
-        // User 메시지에 대한 피드백 생성
-        await generateFeedbackForMessage(userMessage.message_id, text);
-
-        return gptResponse;
-    } catch (error) {
-        console.error("GPT 대화 생성 중 에러:", error);
-        throw error;
-    }
-};
-
-
 // 공통 프롬프트 생성 함수
 const createPrompt = ({ mainTopic, subTopic, difficulty, detail, character }) => {
     return [
@@ -238,7 +159,7 @@ const createPrompt = ({ mainTopic, subTopic, difficulty, detail, character }) =>
         {
             role: "assistant",
             content: `The conversation is about: Topic: ${mainTopic}, Subtopic: ${subTopic}, Difficulty: ${difficulty}, Detail: ${detail}. 
-            ${detail}에서 서술한 역할을 철저하게 지키고, 주제에 관한 대화를 3문장 이내로, 실제 사람과 대화하듯이 번호와 이모티콘 등은 넣지 말고 제공해`,
+            Provide a response strictly adhering to the role described in ${detail}. Keep the conversation related to the topic within three sentences, and ensure it feels like a real conversation without using numbers, emojis, or other symbols.`,
         },
     ];
 };
@@ -305,12 +226,20 @@ exports.generateFeedbackForMessage = async function (messageId, text) {
 }
 
 // GPT와 대화하고 응답을 저장
-exports.GPTResponse = async function (text, converseId) {
+exports.GPTResponse = async function ({ text, converseId, mainTopic, subTopic, difficulty, detail, character }) {
     try {
         // 대화 내역 가져오기
         let conversationHistory = await getConversationHistory(converseId);
-        conversationHistory = [...conversationHistory, { role: 'user', content: text }]; // user 메시지 추가
 
+        const systemPrompt = createPrompt({ 
+            mainTopic, 
+            subTopic, 
+            difficulty, 
+            detail, 
+            character 
+        });
+
+        conversationHistory = [...systemPrompt, ...conversationHistory, { role: 'user', content: text }]; // user 메시지 추가
         console.log("Conversation history being sent to OpenAI:", JSON.stringify(conversationHistory, null, 2));
         // OpenAI API에 메시지 전송
         const response = await openai.chat.completions.create({
@@ -357,3 +286,22 @@ exports.generateTTS = async function (text) {
         throw error;
     }
 };
+
+exports.updateEndTime = async (converse_id) => {
+    try {
+        const conversation = await Conversation.findOne({ _id: converse_id });
+        if (!conversation) {
+            throw new Error('Conversation not found');
+        }
+
+        conversation.end_time = new Date();
+
+        await conversation.save();
+
+        return conversation; 
+    } catch (error) {
+        console.error('Error updating end_time:', error);
+        throw error; 
+    }
+};
+

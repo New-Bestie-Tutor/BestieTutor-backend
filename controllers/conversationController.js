@@ -40,7 +40,7 @@ exports.initializeConversation = async (req, res) => {
     }
 };
 
-// 대화 기록 조회
+// 전체 대화 기록 조회
 exports.getConversationHistory = async (req, res) => {
     try {
         const { email } = req.params;
@@ -92,12 +92,56 @@ exports.getConversationHistory = async (req, res) => {
     }
 };
 
+// converse_id로 특정 대화 기록 조회 
+exports.getConversationById = async (req, res) => {
+    try {
+        const { converse_id } = req.params;
+
+        // 대화 조회
+        const conversation = await Conversation.findOne({ _id: converse_id });
+        if (!conversation) {
+            return res.status(404).json({ message: `대화 ${converse_id}를 찾을 수 없습니다.`});
+        }
+
+        // 대화에 포함된 메시지와 피드백 데이터 추가
+        const messages = await Message.find({ converse_id: conversation._id }).sort({ input_date: 1 });
+        const feedbacks = await Feedback.find({ converse_id: conversation._id });
+
+        const conversationDetail = {
+            conversationId: conversation._id,
+            topicDescription: conversation.topic_description,
+            startTime: conversation.start_time,
+            endTime: conversation.end_time,
+            // 같은 converse_id인 메시지 및 피드백 가져오기
+            messages: messages.map((message) => ({
+                messageId: message.message_id,
+                content: message.message,
+                type: message.message_type,
+                inputDate: message.input_date,
+            })),
+            feedbacks: feedbacks.map((feedback) => ({
+                feedbackId: feedback._id,
+                messageId: feedback.message_id,
+                content: feedback.feedback,
+                startTime: feedback.start_time,
+            })),
+        };
+
+        console.log(conversationDetail);
+
+        res.status(200).json({ conversation: conversationDetail });
+    } catch (error) {
+        console.error('대화 기록 조회 중 에러:', error);
+        res.status(500).json({ message: '대화 기록 조회 중 에러' });
+    }
+}
+
 exports.addUserMessage = async (req, res) => {
     try {
         // 사용자 정보 가져오기
         const profileResponse = await axios.get('http://localhost:3000/user/profile', {
             headers: {
-                Authorization: `Bearer ${req.cookies.token || req.headers['authorization']}` // 토큰 전달
+                Authorization: req.headers['authorization'],
             }
         });
 
@@ -143,7 +187,7 @@ exports.addUserMessage = async (req, res) => {
         await conversationService.generateFeedbackForMessage(messageId, text);
 
         res.set('Content-Type', 'application/json');
-        res.json({ messageId });
+        res.json({ messageId, conversationId });
     } catch (error) {
         console.error('사용자 메시지 등록 중 에러:', error);
         res.status(500).json({ message: '사용자 메시지 등록 중 에러' });
@@ -156,7 +200,7 @@ exports.getResponse = async (req, res) => {
         // 사용자 정보 가져오기
         const profileResponse = await axios.get('http://localhost:3000/user/profile', {
             headers: {
-                Authorization: `Bearer ${req.cookies.token || req.headers['authorization']}` // 토큰 전달
+                Authorization: req.headers['authorization'], // 그대로 사용
             }
         });
 
@@ -179,6 +223,8 @@ exports.getResponse = async (req, res) => {
             return res.status(400).json({ message: '잘못된 난이도입니다.' });
         }
 
+        const detail = difficultyData.detail;
+
         // 캐릭터 검증
         const character = await Character.findOne({ name: characterName });
         if (!character) {
@@ -188,18 +234,18 @@ exports.getResponse = async (req, res) => {
         // 새 대화 생성 또는 기존 대화 재사용
         let conversationId = req.body.converseId;
         if (!conversationId) {
-            const conversationData = await conversationService.createNewConversation({
-                email: profileResponse.data.email,
-                mainTopic,
-                subTopic,
-                difficulty,
-                characterName
-            });
-            conversationId = conversationData.conversationId;
+                const conversationData = await conversationService.createNewConversation({
+                    email: profileResponse.data.email,
+                    mainTopic,
+                    subTopic,
+                    difficulty,
+                    characterName
+                });
+                conversationId = conversationData.conversationId;
         }
-
+        
         // GPT 응답 생성
-        const { gptResponse } = await conversationService.GPTResponse(text, conversationId);
+        const { gptResponse } = await conversationService.GPTResponse({ text, converseId: conversationId, mainTopic, subTopic, difficulty, detail, character });
 
         // TTS 변환 후 텍스트와 음성 데이터 함께 응답
         const audioBuffer = await conversationService.generateTTS(gptResponse);
@@ -208,5 +254,25 @@ exports.getResponse = async (req, res) => {
     } catch (error) {
         console.error('대화 중 에러:', error);
         res.status(500).json({ message: '대화 중 에러' });
+    }
+};
+
+// endTime Update
+exports.updateEndTime = async (req, res) => {
+    const { converseId } = req.body;
+
+    if (!converseId) {
+        return res.status(404).json({ message: 'converseId가 필요합니다.' });
+    }
+
+    try {
+        const updateEndTime = await conversationService.updateEndTime(converseId);
+        if (!updateEndTime) {
+            return res.status(404).json({ message: '대화를 찾을 수 없습니다.' });
+        }
+        res.status(200).json({ message: 'EndTime 추가 성공', updateEndTime });
+    } catch (error) {
+        console.error(error);
+        res.status(404).json({ message: error.message });
     }
 };
