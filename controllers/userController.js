@@ -38,6 +38,7 @@ exports.kakaoCallback = async (req, res) => {
 
         res.status(200).json({
             accessToken: accessToken,
+            user,
             redirectUrl: user.preferenceCompleted ? HOME_URL : LANGUAGE_URL,
         });
     } catch (error) {
@@ -91,11 +92,11 @@ exports.login = async (req, res) => {
             return res.status(404).json({ message: '사용자를 찾을 수 없습니다.' });
         }
 
-        const redirectUrl = user.preferenceCompleted
-            ? '/home'
-            : '/chooseLanguage';
-
-        return res.status(200).json({ redirectUrl });
+        res.status(200).json({
+            accessToken: accessToken,
+            user,
+            redirectUrl: user.preferenceCompleted ? HOME_URL : LANGUAGE_URL,
+        });
     } catch (error) {
         console.error(error);
         res.status(401).json({ message: error.message });

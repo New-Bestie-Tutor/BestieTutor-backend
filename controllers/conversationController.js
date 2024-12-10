@@ -141,7 +141,7 @@ exports.addUserMessage = async (req, res) => {
         // 사용자 정보 가져오기
         const profileResponse = await axios.get('http://localhost:3000/user/profile', {
             headers: {
-                Authorization: `Bearer ${req.cookies.token || req.headers['authorization']}` // 토큰 전달
+                Authorization: req.headers['authorization'],
             }
         });
 
@@ -200,7 +200,7 @@ exports.getResponse = async (req, res) => {
         // 사용자 정보 가져오기
         const profileResponse = await axios.get('http://localhost:3000/user/profile', {
             headers: {
-                Authorization: `Bearer ${req.cookies.token || req.headers['authorization']}` // 토큰 전달
+                Authorization: req.headers['authorization'], // 그대로 사용
             }
         });
 
