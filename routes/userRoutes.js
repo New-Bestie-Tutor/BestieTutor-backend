@@ -1,10 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/userController');
-<<<<<<< HEAD
-=======
 const { authMiddleware } = require('../middlewares/authMiddleware');
->>>>>>> feature/update
 
 // 회원가입
 router.post('/', userController.register);
