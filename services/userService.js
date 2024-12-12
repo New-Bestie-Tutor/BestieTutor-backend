@@ -8,6 +8,22 @@ dotenv.config();
 const jwtSecret = process.env.JWT_SECRET;
 const bcryptSalt = bcrypt.genSaltSync(10);
 
+exports.generateAccessToken = (user) => {
+    return jwt.sign(
+        { userId: user.userId, email: user.email },
+        jwtSecret,
+        { expiresIn: '2h' } // 2시간 유효
+    );
+};
+
+exports.generateRefreshToken = (user) => {
+    return jwt.sign(
+        { userId: user.userId, email: user.email },
+        jwtSecret,
+        { expiresIn: '14d' } // 2주 유효
+    );
+};
+
 exports.kakaoLogin = async (code) => {
     const clientId = process.env.KAKAO_CLIENT_ID;
     const redirectUri = process.env.KAKAO_CALLBACK_URL;
@@ -40,27 +56,30 @@ exports.kakaoLogin = async (code) => {
         const kakaoUser = userInfoResponse.data;
 
         // 사용자 정보를 DB에 저장 또는 업데이트
+        const lastUser = await User.findOne().sort({ userId: -1 });
+        const newUserId = lastUser ? lastUser.userId + 1 : 0;
+
         const user = await User.findOneAndUpdate(
             { kakaoId: kakaoUser.id }, // Kakao 고유 ID로 검색
             {
+                $setOnInsert: {
+                    userId: newUserId, // 새로운 userId 설정
+                    password: 'kakao-login', // 기본값
+                    phone: '', // 기본값
+                    address: '', // 기본값
+                },
                 kakaoId: kakaoUser.id,
-                email: kakaoUser.kakao_account.email,
-                nickname: kakaoUser.properties.nickname,
-                profileImage: kakaoUser.properties.profile_image,
+                email: kakaoUser.kakao_account.email || '',
+                nickname: kakaoUser.properties.nickname || 'Anonymous',
+                gender: kakaoUser.kakao_account.gender || 'hidden',
             },
-            { new: true, upsert: true } // 업데이트 또는 없으면 생성
+            { new: true, upsert: true } // 업데이트 또는 생성
         );
 
-        // JWT 토큰 생성
-        const expirationTime = Math.floor(Date.now() / 1000) + 60 * 60; // 1시간 유효
-        const payload = {
-            userId: user.userId,
-            email: user.email,
-            exp: expirationTime,
-        };
-        const token = jwt.sign(payload, jwtSecret);
+        const accessTokenJWT = this.generateAccessToken(user);
+        const refreshTokenJWT = this.generateRefreshToken(user);
 
-        return token; // 생성된 JWT 토큰 반환
+        return { accessToken: accessTokenJWT, refreshToken: refreshTokenJWT };
     } catch (error) {
         console.error(error);
         throw new Error('카카오 로그인 실패');
@@ -82,7 +101,8 @@ exports.register = async (email, password, nickname, phone, gender, address) => 
     const hashedPassword = await bcrypt.hash(password, bcryptSalt);
 
     // 새 사용자 추가
-    const newUser = new User({ userId, email, password: hashedPassword, nickname, phone, gender, address });
+    const newUser = new User({ userId, email, password: hashedPassword, nickname, 
+        phone, gender, address, kakaoId: userId.toString() });
     await newUser.save();
     return newUser;
 };
@@ -99,24 +119,33 @@ exports.login = async (email, password) => {
         throw new Error('이메일 또는 비밀번호가 잘못되었습니다.');
     }
 
-    try {
-        // JWT 토큰 발급
-        const expirationTime = Math.floor(Date.now() / 1000) + 60*60; 
-        const payload = {
-            userId: user.userId,
-            email: user.email,
-            exp: expirationTime,
-        };
-        const token = jwt.sign(payload, jwtSecret);
-        return token;
-    } catch (error) {
-        console.error('JWT 토큰 생성 오류: ', error);
-        throw new Error('토큰 생성에 실패했습니다.');
-    }
+    const accessToken = this.generateAccessToken(user);
+    const refreshToken = this.generateRefreshToken(user);
+
+    return { accessToken, refreshToken };
 };
+
+exports.refreshToken = async (refreshToken) => {
+    try {
+        const decoded = jwt.verify(refreshToken, jwtSecret);
+        const user = await User.findOne({ userId: decoded.userId });
+
+        if (!user) {
+            throw new Error('사용자를 찾을 수 없습니다.');
+        }
+
+        const newAccessToken = this.generateAccessToken(user);
+        return { accessToken: newAccessToken };
+    } catch (error) {
+        console.error(error);
+        throw new Error('Invalid refresh token');
+    }
+}
 
 exports.updateUser = async (email, updates) => {
     const user = await User.findOne({ email });
+
+    if (!user) throw new Error('사용자를 찾을 수 없습니다.');
 
     // 비밀번호 업데이트가 있을 경우 해시 처리
     if (updates.password) {
@@ -162,4 +191,41 @@ exports.userLevel = (userId, level) => {
 exports.userInterest = (userId, interests) => {
     // 관심 주제 설정 로직 구현
     return { message: '관심 주제 업데이트 완료' };
+};
+
+// 특정 사용자 정보 조회
+exports.getUser = async(userId) => {
+    try {
+        const user = await User.findOne({ userId: userId });
+        return user;
+    } catch (error) {
+        throw new Error('사용자 정보를 가져오는 데 실패했습니다.');
+    }
+};
+
+exports.getUserByToken = async (token) => {
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await User.findOne({ userId: decoded.userId });
+        return user;
+    } catch (error) {
+        throw new Error('토큰으로 사용자 정보를 조회하는 데 실패했습니다.');
+    }
+};
+
+exports.getUserByEmail = async (email) => {
+    try {
+        const user = await User.findOne({ email });
+        return user;
+    } catch (error) {
+        throw new Error('사용자 정보를 가져오는 데 실패했습니다.');
+    }
+};
+
+exports.checkEmailDuplicate = async (email) => {
+    // 이미 존재하는 사용자 확인
+    const existingUser = await User.findOne({ email });
+    
+    // 이메일이 존재하면 true, 없으면 false
+    return existingUser ? true : false;
 };

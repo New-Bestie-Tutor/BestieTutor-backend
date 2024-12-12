@@ -23,7 +23,7 @@ exports.getPreferences = async (req, res) => {
     try {
         const preferences = await preferenceService.getPreferences(userId);
         if (!preferences) {
-            return res.status(404).json({ message: '선호도를 찾을 수 없습니다.' });
+            return res.redirect('/chooseLanguage');
         }
         res.status(200).json(preferences);
     } catch (error) {

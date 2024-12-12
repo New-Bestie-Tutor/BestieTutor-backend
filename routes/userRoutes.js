@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/userController');
+const { authMiddleware } = require('../middlewares/authMiddleware');
 
 // 회원가입
 router.post('/', userController.register);
@@ -34,5 +35,17 @@ router.post('/level', userController.userLevel);
 
 // 관심 주제 설정
 router.post('/interests', userController.userInterest);
+
+// 사용자 정보 조회
+router.get('/getUser', userController.getUser);
+
+// 토큰으로 user 정보 조회
+router.get('/getUserInfo', userController.getUserInfo);
+
+// 인증이 필요한 경로
+router.get('/profile', authMiddleware, userController.profile);
+
+//이메일 중복 확인
+router.post('/checkEmailDuplicate', userController.checkEmailDuplicate);
 
 module.exports = router;
