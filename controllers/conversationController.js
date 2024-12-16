@@ -6,13 +6,14 @@ const Character = require('../models/Character');
 const Conversation = require('../models/Conversation');
 const Message = require('../models/Message');
 const Feedback = require('../models/Feedback');
+const Language = require('../models/Language');
 
 // 첫 발화
 exports.initializeConversation = async (req, res) => {
     try {
-        const { mainTopic, subTopic, difficulty, characterName } = req.body;
+        const { mainTopic, subTopic, difficulty, characterName, language } = req.body;
 
-        if (!mainTopic || !subTopic || !difficulty || !characterName) {
+        if (!mainTopic || !subTopic || !difficulty || !characterName || !language) {
             return res.status(400).json({ message: '필수 데이터가 누락되었습니다.' });
         }
 
@@ -21,11 +22,13 @@ exports.initializeConversation = async (req, res) => {
             mainTopic,
             subTopic,
             difficulty,
-            characterName
+            characterName,
+            language
         });
 
         // TTS 변환
-        const audioBuffer = await conversationService.generateTTS(initialMessage);
+        const audioBuffer = await conversationService.generateTTS(initialMessage, language);
+        console.log('TTS 요청 데이터:', language);
 
         // 응답 전송
         return res.status(200).json({
@@ -45,16 +48,16 @@ exports.getConversationHistory = async (req, res) => {
     try {
         const { email } = req.params;
 
-         // 사용자 조회
-         const user = await User.findOne({ email });
-         if (!user) {
-             return res.status(404).json({ message: '해당 이메일의 사용자를 찾을 수 없습니다.' });
-         }
- 
+        // 사용자 조회
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ message: '해당 이메일의 사용자를 찾을 수 없습니다.' });
+        }
+
         // userId로 대화 데이터 조회
         const conversations = await Conversation.find({ user_id: user._id }).sort({ start_time: -1 });
         if (conversations.length === 0) {
-             return res.status(404).json({ message: '해당 사용자의 대화를 찾을 수 없습니다.' });
+            return res.status(404).json({ message: '해당 사용자의 대화를 찾을 수 없습니다.' });
         }
 
         // 각 대화에 포함된 메시지와 피드백 데이터 추가
@@ -204,7 +207,7 @@ exports.getResponse = async (req, res) => {
             }
         });
 
-        const { text, conversationHistory, mainTopic, subTopic, difficulty, characterName } = req.body;
+        const { text, conversationHistory, mainTopic, subTopic, difficulty, characterName, language } = req.body;
 
         // 요청 데이터 검증
         if (!text || !Array.isArray(conversationHistory)) {
@@ -239,16 +242,17 @@ exports.getResponse = async (req, res) => {
                     mainTopic,
                     subTopic,
                     difficulty,
-                    characterName
+                    characterName,
+                    language
                 });
                 conversationId = conversationData.conversationId;
         }
-        
+
         // GPT 응답 생성
         const { gptResponse } = await conversationService.GPTResponse({ text, converseId: conversationId, mainTopic, subTopic, difficulty, detail, character });
 
         // TTS 변환 후 텍스트와 음성 데이터 함께 응답
-        const audioBuffer = await conversationService.generateTTS(gptResponse);
+        const audioBuffer = await conversationService.generateTTS(gptResponse, language);
         res.set('Content-Type', 'application/json');
         res.json({ gptResponse, audio: audioBuffer.toString('base64') });
     } catch (error) {
@@ -274,5 +278,33 @@ exports.updateEndTime = async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(404).json({ message: error.message });
+    }
+};
+
+exports.handleLanguageChange = async (req, res) => {
+    const { userId, selectedLanguage } = req.body;
+
+    try {
+        // 선택된 언어가 Language DB에 존재하는지 확인
+        const language = await Language.findOne({ name: selectedLanguage });
+        if (!language) {
+            console.error("Language not found:", selectedLanguage);
+            return res.status(404).json({ message: "Selected language not supported" });
+        }
+
+        // 사용자 데이터베이스에서 사용자 정보 업데이트
+        const user = await User.findById(userId);
+
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        user.language = selectedLanguage; // 언어 필드 업데이트
+        await user.save();
+
+        return res.status(200).json({ message: "Language successfully updated", language: user.language });
+    } catch (error) {
+        console.error("Error updating language:", error.message);
+        return res.status(500).json({ message: "Internal server error" });
     }
 };
