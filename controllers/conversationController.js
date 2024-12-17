@@ -146,7 +146,7 @@ exports.addUserMessage = async (req, res) => {
             }
         });
 
-        const { text, conversationHistory, mainTopic, subTopic, difficulty, characterName } = req.body;
+        const { text, conversationHistory, mainTopic, subTopic, difficulty, characterName, language } = req.body;
 
         // 요청 데이터 검증
         if (!text || !Array.isArray(conversationHistory)) {
@@ -179,13 +179,14 @@ exports.addUserMessage = async (req, res) => {
                 mainTopic,
                 subTopic,
                 difficulty,
-                characterName
+                characterName,
+                language
             });
             conversationId = conversationData.conversationId;
         }
 
         const { messageId } = await conversationService.addUserMessage(text, conversationId);
-        await conversationService.generateFeedbackForMessage(messageId, text);
+        await conversationService.generateFeedbackForMessage(messageId, text, language);
 
         res.set('Content-Type', 'application/json');
         res.json({ messageId, conversationId });

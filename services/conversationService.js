@@ -175,17 +175,20 @@ const createPrompt = ({ mainTopic, subTopic, difficulty, detail, character, lang
 };
 
 // 메시지에 자동으로 피드백 추가
-async function generateFeedbackForMessage(messageId, userText) {
+async function generateFeedbackForMessage(messageId, userText, language) {
     try {
+        const languageCode = await Language.findOne({ code: language });
+
         const message = await Message.findOne({ message_id: messageId });
         if (!message) {
             throw new Error("Message not found.");
         }
 
         // 피드백 생성을 위한 prompt
-        const prompt = `You are a professional language tutor. Your task is to evaluate and provide feedback on the given user's message. 
+        const feedbackPrompt = `You are a professional language tutor. Your task is to evaluate and provide feedback on the given user's message in ${languageCode.name}. 
         Provide constructive feedback on grammar, vocabulary, sentence structure, and overall clarity. 
-        Offer suggestions for improvement where necessary. 피드백은 한 문장으로 제한해.
+        Offer suggestions for improvement where necessary. Keep the feedback concise and limited to one sentence. 
+        Respond must be in ${languageCode.name}.
 
         User's message: "${userText}"`;
 
@@ -193,8 +196,8 @@ async function generateFeedbackForMessage(messageId, userText) {
         const response = await openai.chat.completions.create({
             model: 'gpt-4o-mini',
             messages: [
-                { role: 'system', content: "You are a helpful assistant." },
-                { role: 'user', content: prompt }
+                { role: 'system', content: `You are a helpful assistant providing feedback strictly in ${languageCode.name}.` },
+                { role: 'user', content: feedbackPrompt }
             ],
         });
 
@@ -221,7 +224,7 @@ exports.addUserMessage = async function (text, converseId) {
         converse_id: converseId,
         message: text,
         message_type: 'USER',
-        input_date: new Date()
+        input_date: new Date(),
     });
     await userMessage.save();
 
@@ -230,9 +233,9 @@ exports.addUserMessage = async function (text, converseId) {
     };
 }
 
-exports.generateFeedbackForMessage = async function (messageId, text) {
+exports.generateFeedbackForMessage = async function (messageId, text, language) {
     // User 메시지에 대한 피드백 생성
-    await generateFeedbackForMessage(messageId, text);
+    await generateFeedbackForMessage(messageId, text, language);
 }
 
 // GPT와 대화하고 응답을 저장
