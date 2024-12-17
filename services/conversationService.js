@@ -6,6 +6,7 @@ const Topic = require('../models/Topic');
 const Character = require('../models/Character')
 const User = require('../models/User');
 const Feedback = require('../models/Feedback');
+const Language = require('../models/Language');
 const { TextToSpeechClient } = require('@google-cloud/text-to-speech');
 
 require('dotenv').config(); // .env 파일 로드
@@ -18,8 +19,13 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
 });
 
-exports.generateInitialMessage = async ({ mainTopic, subTopic, difficulty, characterName }) => {
+exports.generateInitialMessage = async ({ mainTopic, subTopic, difficulty, characterName, language }) => {
     try {
+        const languageCode = await Language.findOne({ code: language });
+        if (!languageCode) {
+            throw new Error(`"${language}"에 해당하는 언어를 찾을 수 없습니다.`);
+        }
+
         // 토픽과 캐릭터 데이터 확인
         const topic = await Topic.findOne({ mainTopic });
         if (!topic) {
@@ -48,6 +54,7 @@ exports.generateInitialMessage = async ({ mainTopic, subTopic, difficulty, chara
             difficulty,
             detail: difficultyData.detail,
             character,
+            language: languageCode,
         });
 
         // 첫 발화 생성
@@ -60,7 +67,6 @@ exports.generateInitialMessage = async ({ mainTopic, subTopic, difficulty, chara
         });
 
         const initialMessage = gptResponse.choices[0].message.content.trim();
-        console.log('GPT Initial Message:', initialMessage);
 
         return { initialMessage };
     } catch (error) {
@@ -71,7 +77,7 @@ exports.generateInitialMessage = async ({ mainTopic, subTopic, difficulty, chara
 
 
 // 새로운 대화 생성
-exports.createNewConversation = async ({ email, mainTopic, subTopic, difficulty, characterName }) => {
+exports.createNewConversation = async ({ email, mainTopic, subTopic, difficulty, characterName, language }) => {
     try {
         const user = await User.findOne({ email });
         if (!user) {
@@ -110,13 +116,20 @@ exports.createNewConversation = async ({ email, mainTopic, subTopic, difficulty,
                 throw new Error('해당 Character를 찾을 수 없습니다.');
             }
 
+            const languageCode = await Language.findOne({ code: language });
+            if (!languageCode) {
+                throw new Error('해당 language를 찾을 수 없습니다.');
+            }
+
             // 새로운 Conversation 문서 생성 및 저장
             conversation = new Conversation({
                 user_id: user._id,
                 topic_description: `${mainTopic} - ${subTopic} - ${difficulty}`,
                 description: difficultyData.description,
                 start_time: new Date(),
-                end_time: null // 대화가 끝날 때 업데이트
+                end_time: null, // 대화가 끝날 때 업데이트
+                selected_language: languageCode.name,
+                selected_character: character.name
             })
 
             await conversation.save();
@@ -150,32 +163,40 @@ async function getConversationHistory(converseId) {
 }
 
 // 공통 프롬프트 생성 함수
-const createPrompt = ({ mainTopic, subTopic, difficulty, detail, character }) => {
+const createPrompt = ({ mainTopic, subTopic, difficulty, detail, character, language }) => {
+    if (!language.name || !language.prompt) {
+        throw new Error('언어 데이터가 잘못되었습니다. name 또는 prompt가 존재하지 않습니다.');
+    }
+
     return [
         {
             role: "system",
-            content: `You are acting as the character "${character.name}" with the following traits: Personality: ${character.personality}, Tone: ${character.tone}. Stay in character throughout the conversation.`,
+            content: `You are acting as the character "${character.name}" with the following traits: Personality: ${character.personality}, Tone: ${character.tone}. Stay in character throughout the conversation. Respond in ${language.name}.`,
         },
         {
             role: "assistant",
             content: `The conversation is about: Topic: ${mainTopic}, Subtopic: ${subTopic}, Difficulty: ${difficulty}, Detail: ${detail}. 
-            Provide a response strictly adhering to the role described in ${detail}. Keep the conversation related to the topic within three sentences, and ensure it feels like a real conversation without using numbers, emojis, or other symbols.`,
+            Provide short and concise responses of 1-2 sentences, ensuring that each sentence ends with standard punctuation marks like ".", "?", or "!". Treat these punctuation marks as clear sentence boundaries and do not extend sentences unnecessarily.
+            ${language.prompt}. Avoid using numbers, emojis, or other symbols, and ensure the responses feel like a natural, flowing conversation.`,
         },
     ];
 };
 
 // 메시지에 자동으로 피드백 추가
-async function generateFeedbackForMessage(messageId, userText) {
+async function generateFeedbackForMessage(messageId, userText, language) {
     try {
+        const languageCode = await Language.findOne({ code: language });
+
         const message = await Message.findOne({ message_id: messageId });
         if (!message) {
             throw new Error("Message not found.");
         }
 
         // 피드백 생성을 위한 prompt
-        const prompt = `You are a professional language tutor. Your task is to evaluate and provide feedback on the given user's message. 
+        const feedbackPrompt = `You are a professional language tutor. Your task is to evaluate and provide feedback on the given user's message in Korean. 
         Provide constructive feedback on grammar, vocabulary, sentence structure, and overall clarity. 
-        Offer suggestions for improvement where necessary. 피드백은 한 문장으로 제한해.
+        Offer suggestions for improvement where necessary. Keep the feedback concise and limited to one sentence. 
+        Respond must be in Korean.
 
         User's message: "${userText}"`;
 
@@ -183,8 +204,8 @@ async function generateFeedbackForMessage(messageId, userText) {
         const response = await openai.chat.completions.create({
             model: 'gpt-4o-mini',
             messages: [
-                { role: 'system', content: "You are a helpful assistant." },
-                { role: 'user', content: prompt }
+                { role: 'system', content: `You are a helpful assistant providing feedback strictly in Korean.` },
+                { role: 'user', content: feedbackPrompt }
             ],
         });
 
@@ -211,7 +232,7 @@ exports.addUserMessage = async function (text, converseId) {
         converse_id: converseId,
         message: text,
         message_type: 'USER',
-        input_date: new Date()
+        input_date: new Date(),
     });
     await userMessage.save();
 
@@ -220,27 +241,33 @@ exports.addUserMessage = async function (text, converseId) {
     };
 }
 
-exports.generateFeedbackForMessage = async function (messageId, text) {
+exports.generateFeedbackForMessage = async function (messageId, text, language) {
     // User 메시지에 대한 피드백 생성
-    await generateFeedbackForMessage(messageId, text);
+    await generateFeedbackForMessage(messageId, text, language);
 }
 
 // GPT와 대화하고 응답을 저장
-exports.GPTResponse = async function ({ text, converseId, mainTopic, subTopic, difficulty, detail, character }) {
+exports.GPTResponse = async function ({ text, converseId, mainTopic, subTopic, difficulty, detail, character, language }) {
     try {
+        const languageCode = await Language.findOne({ code: language });
+        if (!languageCode) {
+            throw new Error('지원되지 않는 언어입니다.');
+        }
+
         // 대화 내역 가져오기
         let conversationHistory = await getConversationHistory(converseId);
 
-        const systemPrompt = createPrompt({ 
-            mainTopic, 
-            subTopic, 
-            difficulty, 
-            detail, 
-            character 
+        const systemPrompt = createPrompt({
+            mainTopic,
+            subTopic,
+            difficulty,
+            detail,
+            character,
+            language: languageCode
         });
 
         conversationHistory = [...systemPrompt, ...conversationHistory, { role: 'user', content: text }]; // user 메시지 추가
-        console.log("Conversation history being sent to OpenAI:", JSON.stringify(conversationHistory, null, 2));
+
         // OpenAI API에 메시지 전송
         const response = await openai.chat.completions.create({
             model: 'gpt-4o-mini',
@@ -270,16 +297,19 @@ exports.GPTResponse = async function ({ text, converseId, mainTopic, subTopic, d
     }
 };
 
-exports.generateTTS = async function (text) {
+exports.generateTTS = async function (text, language) {
     try {
+        const languageCode = await Language.findOne({ code: language });
+        if (!languageCode) {
+            throw new Error('지원되지 않는 언어입니다.');
+        }
+
         const [response] = await TTS.synthesizeSpeech({
             input: { text },
-            // voice: { languageCode: 'en-US', ssmlGender: 'NEUTRAL' },
-            voice: { languageCode: 'ko-KR', ssmlGender: 'NEUTRAL' },
+            voice: { languageCode: languageCode.voiceCode, ssmlGender: languageCode.ssmlGender || 'NEUTRAL' },
             audioConfig: { audioEncoding: 'MP3' },
         });
 
-        console.log('TTS 변환 성공');
         return response.audioContent; // 음성 데이터 반환 (Buffer 형태)
     } catch (error) {
         console.error('TTS 변환 중 에러:', error);
@@ -298,10 +328,10 @@ exports.updateEndTime = async (converse_id) => {
 
         await conversation.save();
 
-        return conversation; 
+        return conversation;
     } catch (error) {
         console.error('Error updating end_time:', error);
-        throw error; 
+        throw error;
     }
 };
 
