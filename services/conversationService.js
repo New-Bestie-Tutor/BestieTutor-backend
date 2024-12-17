@@ -77,7 +77,7 @@ exports.generateInitialMessage = async ({ mainTopic, subTopic, difficulty, chara
 
 
 // 새로운 대화 생성
-exports.createNewConversation = async ({ email, mainTopic, subTopic, difficulty, characterName }) => {
+exports.createNewConversation = async ({ email, mainTopic, subTopic, difficulty, characterName, language }) => {
     try {
         const user = await User.findOne({ email });
         if (!user) {
@@ -116,13 +116,20 @@ exports.createNewConversation = async ({ email, mainTopic, subTopic, difficulty,
                 throw new Error('해당 Character를 찾을 수 없습니다.');
             }
 
+            const languageCode = await Language.findOne({ code: language });
+            if (!languageCode) {
+                throw new Error('해당 language를 찾을 수 없습니다.');
+            }
+
             // 새로운 Conversation 문서 생성 및 저장
             conversation = new Conversation({
                 user_id: user._id,
                 topic_description: `${mainTopic} - ${subTopic} - ${difficulty}`,
                 description: difficultyData.description,
                 start_time: new Date(),
-                end_time: null // 대화가 끝날 때 업데이트
+                end_time: null, // 대화가 끝날 때 업데이트
+                selected_language: languageCode.name,
+                selected_character: character.name
             })
 
             await conversation.save();
