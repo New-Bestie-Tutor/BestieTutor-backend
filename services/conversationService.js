@@ -176,7 +176,8 @@ const createPrompt = ({ mainTopic, subTopic, difficulty, detail, character, lang
         {
             role: "assistant",
             content: `The conversation is about: Topic: ${mainTopic}, Subtopic: ${subTopic}, Difficulty: ${difficulty}, Detail: ${detail}. 
-            Provide a response strictly adhering to the role described in ${detail}. ${language.prompt}. Keep the conversation related to the topic within two sentences, and ensure it feels like a real conversation without using numbers, emojis, or other symbols.`,
+            Provide short and concise responses of 1-2 sentences, ensuring that each sentence ends with standard punctuation marks like ".", "?", or "!". Treat these punctuation marks as clear sentence boundaries and do not extend sentences unnecessarily.
+            ${language.prompt}. Avoid using numbers, emojis, or other symbols, and ensure the responses feel like a natural, flowing conversation.`,
         },
     ];
 };
@@ -192,10 +193,10 @@ async function generateFeedbackForMessage(messageId, userText, language) {
         }
 
         // 피드백 생성을 위한 prompt
-        const feedbackPrompt = `You are a professional language tutor. Your task is to evaluate and provide feedback on the given user's message in ${languageCode.name}. 
+        const feedbackPrompt = `You are a professional language tutor. Your task is to evaluate and provide feedback on the given user's message in Korean. 
         Provide constructive feedback on grammar, vocabulary, sentence structure, and overall clarity. 
         Offer suggestions for improvement where necessary. Keep the feedback concise and limited to one sentence. 
-        Respond must be in ${languageCode.name}.
+        Respond must be in Korean.
 
         User's message: "${userText}"`;
 
@@ -203,7 +204,7 @@ async function generateFeedbackForMessage(messageId, userText, language) {
         const response = await openai.chat.completions.create({
             model: 'gpt-4o-mini',
             messages: [
-                { role: 'system', content: `You are a helpful assistant providing feedback strictly in ${languageCode.name}.` },
+                { role: 'system', content: `You are a helpful assistant providing feedback strictly in Korean.` },
                 { role: 'user', content: feedbackPrompt }
             ],
         });
