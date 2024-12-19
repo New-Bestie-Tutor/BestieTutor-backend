@@ -75,9 +75,81 @@ exports.generateInitialMessage = async ({ mainTopic, subTopic, difficulty, chara
     }
 };
 
+// 자유 주제 첫 발화 생성
+exports.generateInitialFreeTopicMessage = async ({ freeTopic, characterName, language }) => {
+    try {
+        const languageCode = await Language.findOne({ code: language });
+        if (!languageCode) {
+            throw new Error(`"${language}"에 해당하는 언어를 찾을 수 없습니다.`);
+        }
+
+        const character = await Character.findOne({ name: characterName });
+        if (!character) {
+            throw new Error('캐릭터를 찾을 수 없습니다.');
+        }
+
+        // 사용자가 입력한 주제 요약
+        const summarizedTopic = summarizeTopic(freeTopic);
+
+        // 자유 주제 프롬프트 생성
+        const messages = createFreeTopicPrompt({
+            summarizedTopic,
+            character,
+            language: languageCode,
+        });
+
+        // 첫 발화 생성
+        const gptResponse = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: messages,
+            max_tokens: 150,
+            temperature: 0.7,
+            top_p: 0.9,
+        });
+
+        const initialMessage = gptResponse.choices[0].message.content.trim();
+
+        return { initialMessage };
+    } catch (error) {
+        console.error('초기 메시지 생성 중 에러:', error);
+        throw error;
+    }
+}
+
+// 사용자 입력 주제 요약
+exports.summarizeTopic = async (freeTopic) => {
+    const response = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+            { role: 'user', content: `Please summarize the following topic: "${freeTopic}"` }
+        ],
+        max_tokens: 50,
+    });
+    return response.choices[0].message.content.trim();
+};
+
+// 자유 주제 프롬프트 생성
+const createFreeTopicPrompt = ({ freeTopic, character, language }) => {
+    if (!language.name || !language.prompt) {
+        throw new Error('언어 데이터가 잘못되었습니다. name 또는 prompt가 존재하지 않습니다.');
+    }
+
+    return [
+        {
+            role: "system",
+            content: `You are acting as the character "${character.name}" with the following traits: Personality: ${character.personality}, Tone: ${character.tone}. Stay in character throughout the conversation. Respond in ${language.name}.`,
+        },
+        {
+            role: "assistant",
+            content: `The conversation is about: Topic: ${freeTopic}.
+            Provide short and concise responses of 1-2 sentences, ensuring that each sentence ends with standard punctuation marks like ".", "?", or "!". Treat these punctuation marks as clear sentence boundaries and do not extend sentences unnecessarily.
+            ${language.prompt}. Avoid using numbers, emojis, or other symbols, and ensure the responses feel like a natural, flowing conversation.`,
+        },
+    ];
+};
 
 // 새로운 대화 생성
-exports.createNewConversation = async ({ email, mainTopic, subTopic, difficulty, characterName, language }) => {
+exports.createNewConversation = async ({ email, mainTopic, freeTopic, subTopic, difficulty, characterName, language }) => {
     try {
         const user = await User.findOne({ email });
         if (!user) {
@@ -85,55 +157,46 @@ exports.createNewConversation = async ({ email, mainTopic, subTopic, difficulty,
         }
 
         // 기존 대화가 존재하는지 확인
+        const topicDescription = freeTopic ? this.summarizeTopic(freeTopic) : `${mainTopic} - ${subTopic} - ${difficulty}`;
         let conversation = await Conversation.findOne({
             user_id: user._id,
-            topic_description: `${mainTopic} - ${subTopic} - ${difficulty}`
+            topic_description: topicDescription
         });
 
         // 기존 대화가 없을 때만 새로운 대화를 생성
         if (!conversation) {
-            const topic = await Topic.findOne({
-                mainTopic,
-                'subTopics.name': subTopic
-            });
+            let difficultyData = null;
 
-            if (!topic) {
-                throw new Error('해당 Topic을 찾을 수 없습니다.');
-            }
+            // 일반 주제일 경우만 검증
+            if (!freeTopic) {
+                const topic = await Topic.findOne({ mainTopic, 'subTopics.name': subTopic });
+                if (!topic) throw new Error('해당 Topic을 찾을 수 없습니다.');
 
-            const subTopicData = topic.subTopics.find(st => st.name === subTopic);
-            if (!subTopicData) {
-                throw new Error('해당 SubTopic을 찾을 수 없습니다.');
-            }
+                const subTopicData = topic.subTopics.find(st => st.name === subTopic);
+                if (!subTopicData) throw new Error('해당 SubTopic을 찾을 수 없습니다.');
 
-            const difficultyData = subTopicData.difficulties.find(d => d.difficulty === difficulty);
-            if (!difficultyData) {
-                throw new Error('해당 난이도를 찾을 수 없습니다.');
+                difficultyData = subTopicData.difficulties.find(d => d.difficulty === difficulty);
+                if (!difficultyData) throw new Error('해당 난이도를 찾을 수 없습니다.');
             }
 
             const character = await Character.findOne({ name: characterName });
-            if (!character) {
-                throw new Error('해당 Character를 찾을 수 없습니다.');
-            }
+            if (!character) throw new Error('해당 Character를 찾을 수 없습니다.');
 
             const languageCode = await Language.findOne({ code: language });
-            if (!languageCode) {
-                throw new Error('해당 language를 찾을 수 없습니다.');
-            }
+            if (!languageCode) throw new Error('해당 language를 찾을 수 없습니다.');
 
             // 새로운 Conversation 문서 생성 및 저장
             conversation = new Conversation({
                 user_id: user._id,
-                topic_description: `${mainTopic} - ${subTopic} - ${difficulty}`,
-                description: difficultyData.description,
+                topic_description: topicDescription,
+                description: freeTopic ? null : difficultyData.description, // 자유 주제일 경우 description은 null
                 start_time: new Date(),
                 end_time: null, // 대화가 끝날 때 업데이트
                 selected_language: languageCode.name,
                 selected_character: character.name
-            })
+            });
 
             await conversation.save();
-
             return { conversationId: conversation._id };
         } else {
             console.log('기존 대화 사용:', conversation._id);
@@ -247,7 +310,7 @@ exports.generateFeedbackForMessage = async function (messageId, text, language) 
 }
 
 // GPT와 대화하고 응답을 저장
-exports.GPTResponse = async function ({ text, converseId, mainTopic, subTopic, difficulty, detail, character, language }) {
+exports.GPTResponse = async function ({ text, converseId, mainTopic, freeTopic, subTopic, difficulty, detail, character, language }) {
     try {
         const languageCode = await Language.findOne({ code: language });
         if (!languageCode) {
@@ -256,15 +319,25 @@ exports.GPTResponse = async function ({ text, converseId, mainTopic, subTopic, d
 
         // 대화 내역 가져오기
         let conversationHistory = await getConversationHistory(converseId);
+        let systemPrompt;
 
-        const systemPrompt = createPrompt({
-            mainTopic,
-            subTopic,
-            difficulty,
-            detail,
-            character,
-            language: languageCode
-        });
+        if (freeTopic) {
+            summarizedTopic = summarizeTopic(freeTopic);
+            systemPrompt = createFreeTopicPrompt({
+                summarizedTopic, 
+                character, 
+                language: languageCode
+            })
+        } else {
+            systemPrompt = createPrompt({
+                mainTopic,
+                subTopic,
+                difficulty,
+                detail,
+                character,
+                language: languageCode
+            });
+        }
 
         conversationHistory = [...systemPrompt, ...conversationHistory, { role: 'user', content: text }]; // user 메시지 추가
 
@@ -334,4 +407,3 @@ exports.updateEndTime = async (converse_id) => {
         throw error;
     }
 };
-

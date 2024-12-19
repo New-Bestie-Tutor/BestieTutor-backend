@@ -11,20 +11,32 @@ const Language = require('../models/Language');
 // 첫 발화
 exports.initializeConversation = async (req, res) => {
     try {
-        const { mainTopic, subTopic, difficulty, characterName, language } = req.body;
+        const { mainTopic, freeTopic, subTopic, difficulty, characterName, language } = req.body;
+        let initialMessage;
 
-        if (!mainTopic || !subTopic || !difficulty || !characterName || !language) {
-            return res.status(400).json({ message: '필수 데이터가 누락되었습니다.' });
+        // 일반 주제와 자유 주제 
+        if (mainTopic) {
+            // 일반 주제를 입력한 경우
+            if (!mainTopic || !subTopic || !difficulty || !characterName || !language) {
+                return res.status(400).json({ message: '필수 데이터가 누락되었습니다.' });
+            }
+    
+             // 초기 메시지 생성
+             ({ initialMessage } = await conversationService.generateInitialMessage({
+                mainTopic,
+                subTopic,
+                difficulty,
+                characterName,
+                language
+            }));
+        } else {
+            // 자유 주제를 입력한 경우
+            ({ initialMessage } = await conversationService.generateInitialFreeTopicMessage({
+                freeTopic, 
+                characterName,
+                language
+            }));
         }
-
-        // 초기 메시지 생성
-        const { initialMessage } = await conversationService.generateInitialMessage({
-            mainTopic,
-            subTopic,
-            difficulty,
-            characterName,
-            language
-        });
 
         // TTS 변환
         const audioBuffer = await conversationService.generateTTS(initialMessage, language);
@@ -33,7 +45,7 @@ exports.initializeConversation = async (req, res) => {
         // 응답 전송
         return res.status(200).json({
             message: '대화 초기화 성공',
-            gptResponse: initialMessage,
+            gptResponse: initialMessage.text || initialMessage,
             audio: audioBuffer.toString('base64') // Base64로 인코딩된 음성 데이터
         });
 
@@ -139,6 +151,7 @@ exports.getConversationById = async (req, res) => {
 
 exports.addUserMessage = async (req, res) => {
     try {
+        // TODO: 미들웨어 추가하고 /profile 호출 없애기기
         // 사용자 정보 가져오기
         const profileResponse = await axios.get('http://localhost:3000/user/profile', {
             headers: {
@@ -146,23 +159,11 @@ exports.addUserMessage = async (req, res) => {
             }
         });
 
-        const { text, conversationHistory, mainTopic, subTopic, difficulty, characterName, language } = req.body;
+        const { text, conversationHistory, mainTopic, freeTopic, subTopic, difficulty, characterName, language } = req.body;
 
         // 요청 데이터 검증
         if (!text || !Array.isArray(conversationHistory)) {
             return res.status(400).json({ message: "text 또는 conversationHistory가 잘못되었습니다." });
-        }
-
-        // 대주제 및 소주제 검증
-        const topic = await Topic.findOne({ mainTopic, 'subTopics.name': subTopic });
-        if (!topic) {
-            return res.status(400).json({ message: '잘못된 mainTopic 또는 subTopic입니다.' });
-        }
-
-        const subTopicData = topic.subTopics.find(st => st.name === subTopic);
-        const difficultyData = subTopicData.difficulties.find(d => d.difficulty === difficulty);
-        if (!difficultyData) {
-            return res.status(400).json({ message: '잘못된 난이도입니다.' });
         }
 
         // 캐릭터 검증
@@ -171,16 +172,35 @@ exports.addUserMessage = async (req, res) => {
             return res.status(400).json({ message: '잘못된 캐릭터 이름입니다.' });
         }
 
+        if (freeTopic) {
+            // 자유 주제인 경우
+            freeTopic = conversationService.summarizeTopic(freeTopic);
+        } else {
+            // 일반 주제인 경우
+            const topic = await Topic.findOne({ mainTopic, 'subTopics.name': subTopic });
+            if (!topic) {
+                return res.status(400).json({ message: '잘못된 mainTopic 또는 subTopic입니다.' });
+            }
+
+            const subTopicData = topic.subTopics.find(st => st.name === subTopic);
+            const difficultyData = subTopicData.difficulties.find(d => d.difficulty === difficulty);
+            if (!difficultyData) {
+                return res.status(400).json({ message: '잘못된 난이도입니다.' });
+            }
+        }
+
         // 새 대화 생성 또는 기존 대화 재사용
         let conversationId = req.body.converseId;
         if (!conversationId) {
             const conversationData = await conversationService.createNewConversation({
                 email: profileResponse.data.email,
-                mainTopic,
-                subTopic,
-                difficulty,
+                mainTopic: freeTopic ? null : mainTopic,
+                freeTopic: freeTopic || null,
+                subTopic: freeTopic ? null : subTopic,
+                difficulty: freeTopic ? null : difficulty,
                 characterName,
                 language
+
             });
             conversationId = conversationData.conversationId;
         }
@@ -202,30 +222,32 @@ exports.getResponse = async (req, res) => {
         // 사용자 정보 가져오기
         const profileResponse = await axios.get('http://localhost:3000/user/profile', {
             headers: {
-                Authorization: req.headers['authorization'], // 그대로 사용
+                Authorization: req.headers['authorization'],
             }
         });
 
-        const { text, conversationHistory, mainTopic, subTopic, difficulty, characterName, language } = req.body;
+        const { text, conversationHistory, mainTopic, freeTopic, subTopic, difficulty, characterName, language } = req.body;
 
         // 요청 데이터 검증
         if (!text || !Array.isArray(conversationHistory)) {
             return res.status(400).json({ message: "text 또는 conversationHistory가 잘못되었습니다." });
         }
 
-        // 대주제 및 소주제 검증
-        const topic = await Topic.findOne({ mainTopic, 'subTopics.name': subTopic });
-        if (!topic) {
-            return res.status(400).json({ message: '잘못된 mainTopic 또는 subTopic입니다.' });
-        }
+        if (!freeTopic) {
+            // 대주제 및 소주제 검증
+            const topic = await Topic.findOne({ mainTopic, 'subTopics.name': subTopic });
+            if (!topic) {
+                return res.status(400).json({ message: '잘못된 mainTopic 또는 subTopic입니다.' });
+            }
 
-        const subTopicData = topic.subTopics.find(st => st.name === subTopic);
-        const difficultyData = subTopicData.difficulties.find(d => d.difficulty === difficulty);
-        if (!difficultyData) {
-            return res.status(400).json({ message: '잘못된 난이도입니다.' });
-        }
+            const subTopicData = topic.subTopics.find(st => st.name === subTopic);
+            const difficultyData = subTopicData.difficulties.find(d => d.difficulty === difficulty);
+            if (!difficultyData) {
+                return res.status(400).json({ message: '잘못된 난이도입니다.' });
+            }
 
-        const detail = difficultyData.detail;
+            const detail = difficultyData.detail;
+        }
 
         // 캐릭터 검증
         const character = await Character.findOne({ name: characterName });
@@ -238,17 +260,16 @@ exports.getResponse = async (req, res) => {
         if (!conversationId) {
                 const conversationData = await conversationService.createNewConversation({
                     email: profileResponse.data.email,
-                    mainTopic,
-                    subTopic,
-                    difficulty,
-                    characterName,
-                    language
+                    mainTopic: freeTopic ? null : mainTopic,
+                    freeTopic: freeTopic || null,
+                    subTopic: freeTopic ? null : subTopic,
+                    difficulty: freeTopic ? null : difficulty,
                 });
                 conversationId = conversationData.conversationId;
         }
 
         // GPT 응답 생성
-        const { gptResponse } = await conversationService.GPTResponse({ text, converseId: conversationId, mainTopic, subTopic, difficulty, detail, character, language });
+        const { gptResponse } = await conversationService.GPTResponse({ text, converseId: conversationId, mainTopic, freeTopic, subTopic, difficulty, detail, character, language });
 
         // TTS 변환 후 텍스트와 음성 데이터 함께 응답
         const audioBuffer = await conversationService.generateTTS(gptResponse, language);
