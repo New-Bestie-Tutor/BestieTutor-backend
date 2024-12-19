@@ -30,8 +30,8 @@ exports.kakaoLogin = async (code) => {
 
     try {
         const tokenResponse = await axios.post(
-            `https://kauth.kakao.com/oauth/token`, 
-            null, 
+            `https://kauth.kakao.com/oauth/token`,
+            null,
             {
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
@@ -101,8 +101,10 @@ exports.register = async (email, password, nickname, phone, gender, address) => 
     const hashedPassword = await bcrypt.hash(password, bcryptSalt);
 
     // 새 사용자 추가
-    const newUser = new User({ userId, email, password: hashedPassword, nickname, 
-        phone, gender, address, kakaoId: userId.toString() });
+    const newUser = new User({
+        userId, email, password: hashedPassword, nickname,
+        phone, gender, address, kakaoId: userId.toString()
+    });
     await newUser.save();
     return newUser;
 };
@@ -110,7 +112,7 @@ exports.register = async (email, password, nickname, phone, gender, address) => 
 exports.login = async (email, password) => {
     const user = await User.findOne({ email });
     if (!user) {
-            throw new Error('이메일 또는 비밀번호가 잘못되었습니다.');
+        throw new Error('이메일 또는 비밀번호가 잘못되었습니다.');
     }
 
     // 비밀번호 검증
@@ -194,7 +196,7 @@ exports.userInterest = (userId, interests) => {
 };
 
 // 특정 사용자 정보 조회
-exports.getUser = async(userId) => {
+exports.getUser = async (userId) => {
     try {
         const user = await User.findOne({ userId: userId });
         return user;
@@ -225,7 +227,25 @@ exports.getUserByEmail = async (email) => {
 exports.checkEmailDuplicate = async (email) => {
     // 이미 존재하는 사용자 확인
     const existingUser = await User.findOne({ email });
-    
+
     // 이메일이 존재하면 true, 없으면 false
     return existingUser ? true : false;
+};
+
+exports.updateTotalTime = async (userId, totalTime) => {
+    if (!userId || totalTime === undefined) {
+        throw new Error('userId 또는 totalTime 값이 없습니다.');
+    }
+
+    const updatedUser = await User.findOneAndUpdate(
+        { userId },
+        { $set: { total_time: totalTime } },
+        { new: true }
+    );
+
+    if (!updatedUser) {
+        throw new Error('사용자를 찾을 수 없습니다.');
+    }
+
+    return updatedUser;
 };
