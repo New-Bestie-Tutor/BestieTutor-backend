@@ -279,31 +279,3 @@ exports.updateEndTime = async (req, res) => {
         res.status(404).json({ message: error.message });
     }
 };
-
-exports.handleLanguageChange = async (req, res) => {
-    const { userId, selectedLanguage } = req.body;
-
-    try {
-        // 선택된 언어가 Language DB에 존재하는지 확인
-        const language = await Language.findOne({ name: selectedLanguage });
-        if (!language) {
-            console.error("Language not found:", selectedLanguage);
-            return res.status(404).json({ message: "Selected language not supported" });
-        }
-
-        // 사용자 데이터베이스에서 사용자 정보 업데이트
-        const user = await User.findById(userId);
-
-        if (!user) {
-            return res.status(404).json({ message: "User not found" });
-        }
-
-        user.language = selectedLanguage; // 언어 필드 업데이트
-        await user.save();
-
-        return res.status(200).json({ message: "Language successfully updated", language: user.language });
-    } catch (error) {
-        console.error("Error updating language:", error.message);
-        return res.status(500).json({ message: "Internal server error" });
-    }
-};
