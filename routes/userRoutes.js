@@ -48,4 +48,7 @@ router.get('/profile', authMiddleware, userController.profile);
 //이메일 중복 확인
 router.post('/checkEmailDuplicate', userController.checkEmailDuplicate);
 
+// 친밀도 계산
+router.put('/updateTotalTime', userController.updateTotalTime);
+
 module.exports = router;

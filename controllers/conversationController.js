@@ -301,6 +301,27 @@ exports.updateEndTime = async (req, res) => {
     }
 };
 
+// 언어 데이터 조회
+exports.getAllLanguages = async (req, res) => {
+    try{
+        const languages = await Language.find({});
+        if (languages.length === 0) {
+            console.error("No languages found");
+            return res.status(404).json({ message: "No languages available" });
+        }
+
+        const languageInfo = languages.map(language => ({
+            name: language.name, 
+            code: language.code
+        }));
+        return res.status(200).json({ languages: languageInfo });
+    }catch (error) {
+        console.error("Error while retrieving languages:", error.message);
+        return res.status(500).json({ message: "Failed to retrieve languages due to server error" });
+    }
+};
+
+// 언어 변경
 exports.handleLanguageChange = async (req, res) => {
     const { userId, selectedLanguage } = req.body;
 
@@ -326,5 +347,29 @@ exports.handleLanguageChange = async (req, res) => {
     } catch (error) {
         console.error("Error updating language:", error.message);
         return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+// 최근 선택 언어 조회
+exports.getRecentLanguage = async (req, res) => {
+    try {
+        const { email } = req.params;
+
+        // 사용자 조회
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ message: '해당 이메일의 사용자를 찾을 수 없습니다.' });
+        }
+
+        // userId로 최근 대화 데이터 1개 조회
+        const conversation = await Conversation.findOne({ user_id: user._id }).sort({ start_time: -1 });
+        if (conversation.length === 0) {
+            return res.status(404).json({ message: '해당 사용자의 대화를 찾을 수 없습니다.' });
+        }
+
+        res.status(200).json({ conversation });
+    } catch (error) {
+        console.error('대화 기록 조회 중 에러:', error);
+        res.status(500).json({ message: '대화 기록 조회 중 에러' });
     }
 };
