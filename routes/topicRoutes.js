@@ -8,7 +8,4 @@ router.get('/', topicController.getTopics);
 // 소주제 및 난이도 선택, 설명 안내
 router.get('/:mainTopic', topicController.getSubTopics);
 
-// 주제 추가
-router.post('/', topicController.addTopic);
-
 module.exports = router;
