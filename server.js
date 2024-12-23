@@ -14,6 +14,7 @@ const noticeRoutes = require('./routes/noticeRoutes');
 const eventRoutes = require('./routes/eventRoutes');
 const topicRoutes = require('./routes/topicRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
 
 dotenv.config();
 mongoose.connect(process.env.MONGO_URL)
@@ -63,6 +64,9 @@ app.use('/topic', topicRoutes);
 
 // 관리자 관련 라우트
 app.use('/admin', adminRoutes);
+
+// 결제 관련 라우트
+app.use('/payment', paymentRoutes);
 
 // 서버 시작
 app.listen(port, () => {
