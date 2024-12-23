@@ -1,15 +1,19 @@
 const axios = require('axios');
 const Payment = require('../models/Payment');
 
-const IMP_KEY = process.env.IMP_KEY;
-const IMP_SECRET = process.env.IMP_SECRET;
+const { IMP_KEY, IMP_SECRET, NODE_ENV } = process.env;
 
 // 포트원 액세스 토큰 생성
 const getAccessToken = async () => {
   try {
-    const response = await axios.post('https://api.iamport.kr/users/getToken', {
+    const payload = {
       imp_key: IMP_KEY,
       imp_secret: IMP_SECRET,
+    };
+    console.log('AccessToken 요청 데이터:', payload);
+    
+    const response = await axios.post('https://api.iamport.kr/users/getToken', payload, {
+      headers: { 'Content-Type': 'application/json' },
     });
 
     if (response.data.code !== 0) {
@@ -26,7 +30,7 @@ const getAccessToken = async () => {
 // 결제 요청 생성
 exports.createPaymentRequest = async (userId, email, amount, paymentMethod) => {
   try {
-    const merchantUid = `order_${Date.now()}`;
+    const merchantUid = `${NODE_ENV === 'development' ? 'dev_' : ''}order_${Date.now()}`;
 
     // 결제 정보 저장 (pending 상태)
     const payment = new Payment({
@@ -40,10 +44,31 @@ exports.createPaymentRequest = async (userId, email, amount, paymentMethod) => {
 
     await payment.save();
 
+    // 액세스 토큰 생성
+    const token = await getAccessToken();
+    console.log('Access Token:', token); // 액세스 토큰 로그 추가
+
+    // 포트원 API에 사전 결제 등록 요청
+    const response = await axios.post(
+      'https://api.iamport.kr/payments/prepare',
+      {
+        merchant_uid: merchantUid,
+        amount,
+      },
+      { headers: { Authorization: token } }
+    );
+
+    console.log('PG 준비 상태:', response.data); // PG 준비 상태 로그 추가
+
+    if (response.data.code !== 0) {
+      throw new Error(`PG 준비 상태 오류: ${response.data.message}`);
+    }
+
     return {
       merchantUid,
       amount,
       buyer_email: email,
+      environment: NODE_ENV === 'development' ? '테스트 환경' : '라이브 환경',
     };
   } catch (error) {
     console.error('결제 요청 생성 중 오류:', error.message);
@@ -55,10 +80,13 @@ exports.createPaymentRequest = async (userId, email, amount, paymentMethod) => {
 exports.verifyPayment = async (impUid, merchantUid, userId) => {
   try {
     const accessToken = await getAccessToken();
+    console.log('Access Token:', accessToken);
 
     const response = await axios.get(`https://api.iamport.kr/payments/${impUid}`, {
       headers: { Authorization: accessToken },
     });
+
+    console.log('결제 검증 응답:', response.data);
 
     if (response.data.code !== 0) {
       throw new Error(`결제 검증 실패: ${response.data.message}`);
@@ -81,7 +109,11 @@ exports.verifyPayment = async (impUid, merchantUid, userId) => {
       payment.status = 'success';
       payment.impUid = impUid;
       await payment.save();
-      return { message: '결제 검증 완료', payment };
+      return {
+        message: '결제 검증 완료',
+        payment,
+        environment: NODE_ENV === 'development' ? '테스트 환경' : '라이브 환경',
+      };
     } else {
       throw new Error('결제 검증에 실패했습니다.');
     }
