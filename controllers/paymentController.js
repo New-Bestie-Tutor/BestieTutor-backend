@@ -28,16 +28,13 @@ exports.requestPayment = async (req, res) => {
       });
     }
 
-    const validPaymentMethods = ["card", "transfer", "kakaopay"];
+    const validPaymentMethods = ["card", "transfer", "kakaopay", "naverpay", "tosspay"];
     if (!validPaymentMethods.includes(paymentMethod)) {
       return res.status(400).json({
         success: false,
         message: "결제 수단이 유효하지 않습니다.",
       });
     }
-
-    // 디버깅 로그
-    console.log("결제 요청 처리 중:", { userId, email, amount, paymentMethod });
 
     // 결제 요청 생성
     const response = await paymentService.createPaymentRequest(

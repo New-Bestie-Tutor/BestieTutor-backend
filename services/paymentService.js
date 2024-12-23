@@ -10,7 +10,6 @@ const getAccessToken = async () => {
       imp_key: IMP_KEY,
       imp_secret: IMP_SECRET,
     };
-    console.log('AccessToken 요청 데이터:', payload);
     
     const response = await axios.post('https://api.iamport.kr/users/getToken', payload, {
       headers: { 'Content-Type': 'application/json' },
@@ -57,8 +56,6 @@ exports.createPaymentRequest = async (userId, email, amount, paymentMethod) => {
       },
       { headers: { Authorization: token } }
     );
-
-    console.log('PG 준비 상태:', response.data); // PG 준비 상태 로그 추가
 
     if (response.data.code !== 0) {
       throw new Error(`PG 준비 상태 오류: ${response.data.message}`);
