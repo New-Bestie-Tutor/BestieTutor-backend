@@ -18,6 +18,6 @@ router.get('/getAllLanguages', conversationController.getAllLanguages);
 
 router.put('/handleLanguageChange', conversationController.handleLanguageChange);
 
-router.get('/getRecentLanguage/:email', conversationController.getRecentLanguage);
+router.get('/getRecentLanguage/:email', conversationController.getRecentLLanguage);
 
 module.exports = router;
