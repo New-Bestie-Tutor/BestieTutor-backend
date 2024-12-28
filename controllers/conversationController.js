@@ -447,3 +447,33 @@ exports.handleLanguageChange = async (req, res) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
+
+// 최근 선택 언어 조회
+exports.getRecentLanguage = async (req, res) => {
+  try {
+    const { email } = req.params;
+
+    // 사용자 조회
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res
+        .status(404)
+        .json({ message: "해당 이메일의 사용자를 찾을 수 없습니다." });
+    }
+
+    // userId로 최근 대화 데이터 1개 조회
+    const conversation = await Conversation.findOne({ user_id: user._id }).sort(
+      { start_time: -1 }
+    );
+    if (conversation.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "해당 사용자의 대화를 찾을 수 없습니다." });
+    }
+
+    res.status(200).json({ conversation });
+  } catch (error) {
+    console.error("대화 기록 조회 중 에러:", error);
+    res.status(500).json({ message: "대화 기록 조회 중 에러" });
+  }
+};
