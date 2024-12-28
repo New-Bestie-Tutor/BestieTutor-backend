@@ -378,7 +378,7 @@ exports.GPTResponse = async function ({
     if (freeTopic) {
       // 이전 자유 주제 대화 내역 반영
       const profileResponse = await axios.get(
-        "http://localhost:3000/user/profile",
+        `${process.env.HOST_URL}/user/profile`,
         {
           headers: {
             Authorization: req.headers["authorization"],

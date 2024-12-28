@@ -26,7 +26,7 @@ const port = 3000;
 // CORS 설정
 app.use(
   cors({
-    origin: "http://localhost:5173", // 프론트엔드의 포트 번호
+    origin: process.env.CLIENT_URL, // 프론트엔드의 포트 번호
     credentials: true, // 쿠키, 인증 헤더 등을 포함한 요청을 허용
   })
 );

@@ -7,6 +7,7 @@ const Conversation = require("../models/Conversation");
 const Message = require("../models/Message");
 const Feedback = require("../models/Feedback");
 const Language = require("../models/Language");
+require("dotenv").config();
 
 // 첫 발화
 exports.initializeConversation = async (req, res) => {
@@ -185,7 +186,7 @@ exports.addUserMessage = async (req, res) => {
   try {
     // 사용자 정보 가져오기
     const profileResponse = await axios.get(
-      "http://localhost:3000/user/profile",
+      `${process.env.HOST_URL}/user/profile`,
       {
         headers: {
           Authorization: req.headers["authorization"],
@@ -276,7 +277,7 @@ exports.getResponse = async (req, res) => {
   try {
     // 사용자 정보 가져오기
     const profileResponse = await axios.get(
-      "http://localhost:3000/user/profile",
+      `${process.env.HOST_URL}/user/profile`,
       {
         headers: {
           Authorization: req.headers["authorization"],
@@ -448,7 +449,7 @@ exports.handleLanguageChange = async (req, res) => {
   }
 };
 
-// 최근 선택 언어 조회
+// 최근 선택 언어 조회 getRecentLLanguage
 exports.getRecentLanguage = async (req, res) => {
   try {
     const { email } = req.params;

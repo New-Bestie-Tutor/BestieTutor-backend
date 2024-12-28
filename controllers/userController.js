@@ -1,8 +1,8 @@
 const userService = require('../services/userService');
 const cookieParser = require('cookie-parser');
 const dotenv = require('dotenv');
-const jwt = require('jsonwebtoken');
 dotenv.config();
+const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const HOME_URL = '/home';
 const LANGUAGE_URL = '/chooseLanguage';
