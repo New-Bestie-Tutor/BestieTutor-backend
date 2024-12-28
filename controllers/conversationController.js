@@ -183,7 +183,6 @@ exports.getConversationById = async (req, res) => {
 
 exports.addUserMessage = async (req, res) => {
   try {
-    // TODO: 미들웨어 추가하고 /profile 호출 없애기기
     // 사용자 정보 가져오기
     const profileResponse = await axios.get(
       "http://localhost:3000/user/profile",
