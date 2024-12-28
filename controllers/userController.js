@@ -3,6 +3,7 @@ const cookieParser = require('cookie-parser');
 const dotenv = require('dotenv');
 const jwt = require('jsonwebtoken');
 dotenv.config();
+const User = require('../models/User');
 const HOME_URL = '/home';
 const LANGUAGE_URL = '/chooseLanguage';
 
@@ -10,7 +11,7 @@ exports.kakaoLogin = (req, res) => {
     const clientId = process.env.KAKAO_CLIENT_ID;
     const redirectUri = process.env.KAKAO_CALLBACK_URL;
     const authUrl = `https://kauth.kakao.com/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=account_email,profile_nickname&&prompt=login`;
-    
+
     res.redirect(authUrl);
 };
 
@@ -26,7 +27,7 @@ exports.kakaoCallback = async (req, res) => {
 
         res.cookie('refreshToken', refreshToken, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production', 
+            secure: process.env.NODE_ENV === 'production',
             maxAge: 14 * 24 * 60 * 60 * 100, // 2주
         });
 
@@ -50,7 +51,7 @@ exports.refreshToken = async (req, res) => {
     const refreshToken = req.cookies.refreshToken;
 
     if (!refreshToken) {
-        return res.status(401).json({ message: 'Refresh token is missing'});
+        return res.status(401).json({ message: 'Refresh token is missing' });
     }
 
     try {
@@ -183,16 +184,16 @@ exports.userInterest = (req, res) => {
     res.status(200).json(result);
 };
 
-exports.getUser = async(req, res) => {
+exports.getUser = async (req, res) => {
     const { userId } = req.query;
 
     try {
         const user = await userService.getUser(userId);
 
         if (!user) {
-            return res.status(404).json({ message: '사용자를 찾을 수 없습니다.'});
+            return res.status(404).json({ message: '사용자를 찾을 수 없습니다.' });
         }
-        
+
         return res.status(200).json(user);
     } catch (error) {
         return res.status(500).json({ message: error.message });
@@ -208,7 +209,7 @@ exports.getUserInfo = async (req, res) => {
     }
 
     try {
-        const userInfo = await userService.getUserByToken(token); 
+        const userInfo = await userService.getUserByToken(token);
         res.status(201).json({ message: 'userId 조회 성공', userInfo: userInfo });
     } catch (error) {
         console.error(error);
@@ -225,5 +226,20 @@ exports.checkEmailDuplicate = async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(400).json({ message: error.message });
+    }
+};
+
+exports.updateTotalTime = async (req, res) => {
+    const { userId, totalTime } = req.body;
+
+    try {
+        const updatedUser = await userService.updateTotalTime(userId, totalTime);
+        return res.status(200).json({
+            message: '총 사용 시간이 성공적으로 업데이트되었습니다.',
+            user: updatedUser,
+        });
+    } catch (error) {
+        console.error('Error updating total_time:', error.message);
+        return res.status(400).json({ message: error.message });
     }
 };

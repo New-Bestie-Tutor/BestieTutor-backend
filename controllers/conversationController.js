@@ -392,6 +392,29 @@ exports.updateEndTime = async (req, res) => {
   }
 };
 
+// 언어 데이터 조회
+exports.getAllLanguages = async (req, res) => {
+  try {
+    const languages = await Language.find({});
+    if (languages.length === 0) {
+      console.error("No languages found");
+      return res.status(404).json({ message: "No languages available" });
+    }
+
+    const languageInfo = languages.map((language) => ({
+      name: language.name,
+      code: language.code,
+    }));
+    return res.status(200).json({ languages: languageInfo });
+  } catch (error) {
+    console.error("Error while retrieving languages:", error.message);
+    return res
+      .status(500)
+      .json({ message: "Failed to retrieve languages due to server error" });
+  }
+};
+
+// 언어 변경
 exports.handleLanguageChange = async (req, res) => {
   const { userId, selectedLanguage } = req.body;
 
