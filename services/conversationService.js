@@ -1,4 +1,5 @@
 const OpenAI = require("openai");
+const axios = require("axios");
 const { v4: uuidv4 } = require("uuid");
 const Conversation = require("../models/Conversation");
 const Message = require("../models/Message");
@@ -128,7 +129,12 @@ exports.generateInitialFreeTopicMessage = async ({
 };
 
 // 자유 주제 프롬프트 생성
-const createFreeTopicPrompt = ({ freeTopic, character, language }) => {
+const createFreeTopicPrompt = ({
+  freeTopic,
+  character,
+  language,
+  conversationDetails,
+}) => {
   if (!language.name || !language.prompt) {
     throw new Error(
       "언어 데이터가 잘못되었습니다. name 또는 prompt가 존재하지 않습니다."
@@ -143,7 +149,8 @@ const createFreeTopicPrompt = ({ freeTopic, character, language }) => {
     {
       role: "assistant",
       content: `The conversation is about: Topic: ${freeTopic}.
-            Provide short and concise responses of 1-2 sentences, ensuring that each sentence ends with standard punctuation marks like ".", "?", or "!". Treat these punctuation marks as clear sentence boundaries and do not extend sentences unnecessarily.
+            Previous free topic conversations: ${conversationDetails}.
+            Use the context from the previous conversations to guide your responses. Provide short and concise responses of 1-2 sentences, ensuring that each sentence ends with standard punctuation marks like ".", "?", or "!". Treat these punctuation marks as clear sentence boundaries and do not extend sentences unnecessarily.
             ${language.prompt}. Avoid using numbers, emojis, or other symbols, and ensure the responses feel like a natural, flowing conversation.`,
     },
   ];
@@ -202,7 +209,6 @@ exports.createNewConversation = async ({
       const languageCode = await Language.findOne({ code: language });
       if (!languageCode) throw new Error("해당 language를 찾을 수 없습니다.");
 
-      // 새로운 Conversation 문서 생성 및 저장
       conversation = new Conversation({
         user_id: user._id,
         topic_description: topicDescription,
@@ -225,15 +231,12 @@ exports.createNewConversation = async ({
   }
 };
 
-// 전체 대화 내역을 MongoDB에서 불러오기
 async function getConversationHistory(converseId) {
   try {
-    // converse_id가 converseId와 일치하는 메시지들을 날짜 순서로 정렬하여 불러와 messages에 저장
     const messages = await Message.find({ converse_id: converseId }).sort({
       input_date: 1,
     });
 
-    // MongoDB에서 가져온 메시지 데이터를 OpenAI API에 맞는 형식으로 변환
     return messages.map((msg) => ({
       role: msg.message_type === "USER" ? "user" : "assistant",
       content: msg.message,
@@ -244,7 +247,6 @@ async function getConversationHistory(converseId) {
   }
 }
 
-// 공통 프롬프트 생성 함수
 const createPrompt = ({
   mainTopic,
   subTopic,
@@ -356,6 +358,7 @@ exports.GPTResponse = async function ({
   detail,
   characterName,
   language,
+  req,
 }) {
   try {
     const languageCode = await Language.findOne({ code: language });
@@ -373,10 +376,58 @@ exports.GPTResponse = async function ({
     let systemPrompt;
 
     if (freeTopic) {
+      // 이전 자유 주제 대화 내역 반영
+      const profileResponse = await axios.get(
+        "http://localhost:3000/user/profile",
+        {
+          headers: {
+            Authorization: req.headers["authorization"],
+          },
+        }
+      );
+      const userEmail = profileResponse.data.email;
+      const user = await User.findOne({ email: userEmail });
+      const previousConversations = await Conversation.find({
+        user_id: user._id,
+        description: "자유 주제 대화",
+      }).sort({ start_time: -1 });
+
+      const conversationDetails = await Promise.all(
+        previousConversations.map(async (conversation) => {
+          const messages = await Message.find({
+            converse_id: conversation._id,
+          }).sort({ input_date: 1 });
+          const feedbacks = await Feedback.find({
+            converse_id: conversation._id,
+          });
+
+          return {
+            conversationId: conversation._id,
+            topicDescription: conversation.topic_description,
+            startTime: conversation.start_time,
+            endTime: conversation.end_time,
+            description: conversation.description,
+            messages: messages.map((message) => ({
+              messageId: message.message_id,
+              content: message.message,
+              type: message.message_type,
+              inputDate: message.input_date,
+            })),
+            feedbacks: feedbacks.map((feedback) => ({
+              feedbackId: feedback._id,
+              messageId: feedback.message_id,
+              content: feedback.feedback,
+              startTime: feedback.start_time,
+            })),
+          };
+        })
+      );
+
       systemPrompt = createFreeTopicPrompt({
         freeTopic,
         character: character,
         language: languageCode,
+        conversationDetails: JSON.stringify(conversationDetails, null, 2),
       });
     } else {
       systemPrompt = createPrompt({

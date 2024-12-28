@@ -356,6 +356,7 @@ exports.getResponse = async (req, res) => {
       difficulty,
       characterName,
       language,
+      req,
     });
 
     // TTS 변환 후 텍스트와 음성 데이터 함께 응답
