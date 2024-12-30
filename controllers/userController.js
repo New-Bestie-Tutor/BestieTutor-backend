@@ -1,11 +1,11 @@
-const userService = require("../services/userService");
-const cookieParser = require("cookie-parser");
-const dotenv = require("dotenv");
-const jwt = require("jsonwebtoken");
+const userService = require('../services/userService');
+const cookieParser = require('cookie-parser');
+const dotenv = require('dotenv');
 dotenv.config();
-const User = require("../models/User");
-const HOME_URL = "/home";
-const LANGUAGE_URL = "/chooseLanguage";
+const jwt = require('jsonwebtoken');
+const User = require('../models/User');
+const HOME_URL = '/home';
+const LANGUAGE_URL = '/chooseLanguage';
 
 exports.kakaoLogin = (req, res) => {
   const clientId = process.env.KAKAO_CLIENT_ID;
