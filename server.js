@@ -56,7 +56,7 @@ app.use("/preference", preferenceRoutes);
 app.use("/character", characterRoutes);
 
 // 공지사항 관련 라우트
-app.use("/notice", noticeRoutes);
+app.use("/notices", noticeRoutes);
 
 // 이벤트 관련 라우트
 app.use("/event", eventRoutes);

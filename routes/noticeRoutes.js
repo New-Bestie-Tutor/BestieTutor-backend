@@ -6,6 +6,6 @@ const noticeController = require("../controllers/noticeController");
 router.get("/", noticeController.getAllNotice);
 
 // 특정 공지사항 조회
-router.get("/:noticeId", noticeController.getNotice);
+router.get("/:noticeId", noticeController.getNoticeById);
 
 module.exports = router;
