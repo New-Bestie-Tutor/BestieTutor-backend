@@ -14,4 +14,10 @@ router.get('/getConversationById/:converse_id', conversationController.getConver
 
 router.put('/updateEndTime', conversationController.updateEndTime);
 
+router.get('/getAllLanguages', conversationController.getAllLanguages);
+
+router.put('/handleLanguageChange', conversationController.handleLanguageChange);
+
+router.get('/getRecentLanguage/:email', conversationController.getRecentLanguage);
+
 module.exports = router;
