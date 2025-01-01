@@ -13,7 +13,6 @@ const characterRoutes = require("./routes/characterRoutes");
 const noticeRoutes = require("./routes/noticeRoutes");
 const eventRoutes = require("./routes/eventRoutes");
 const topicRoutes = require("./routes/topicRoutes");
-const adminRoutes = require("./routes/adminRoutes");
 const inquiryRoutes = require("./routes/inquiryRoutes");
 
 dotenv.config();
@@ -64,9 +63,6 @@ app.use("/event", eventRoutes);
 
 // 주제 관련 라우트
 app.use("/topic", topicRoutes);
-
-// 관리자 관련 라우트
-app.use("/admin", adminRoutes);
 
 // 문의 관련 라우트
 app.use("/inquiries", inquiryRoutes);
