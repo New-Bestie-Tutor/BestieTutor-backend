@@ -14,6 +14,7 @@ const noticeRoutes = require("./routes/noticeRoutes");
 const eventRoutes = require("./routes/eventRoutes");
 const topicRoutes = require("./routes/topicRoutes");
 const inquiryRoutes = require("./routes/inquiryRoutes");
+const paymentRoutes = require("./routes/paymentRoutes");
 
 dotenv.config();
 mongoose
@@ -66,6 +67,9 @@ app.use("/topic", topicRoutes);
 
 // 문의 관련 라우트
 app.use("/inquiries", inquiryRoutes);
+
+// 결제 관련 라우트
+app.use("/payment", paymentRoutes);
 
 // 서버 시작
 app.listen(port, () => {
