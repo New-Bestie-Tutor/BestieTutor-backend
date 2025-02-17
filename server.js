@@ -15,6 +15,7 @@ const eventRoutes = require("./routes/eventRoutes");
 const topicRoutes = require("./routes/topicRoutes");
 const inquiryRoutes = require("./routes/inquiryRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
+const mafiaRoutes = require("./routes/mafiaRoutes")
 
 dotenv.config();
 mongoose
@@ -70,6 +71,9 @@ app.use("/inquiries", inquiryRoutes);
 
 // 결제 관련 라우트
 app.use("/payment", paymentRoutes);
+
+// 마피아 게임 라우트
+app.use("/mafia", mafiaRoutes);
 
 // 서버 시작
 app.listen(port, () => {
