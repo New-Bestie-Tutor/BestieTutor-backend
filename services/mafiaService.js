@@ -1,6 +1,6 @@
 const Game = require("../models/Mafia");
 
-exports.createGame = async (mafiaCount, roles, players) => {
+exports.setupGame = async (mafiaCount, roles, players) => {
   const newGame = new Game({
     mafiaCount,
     roles,
@@ -13,6 +13,6 @@ exports.createGame = async (mafiaCount, roles, players) => {
   return await newGame.save();
 };
 
-exports.getLatestGame = async () => {
-  return await Game.findOne().sort({ createdAt: -1 });
+exports.getGameState = async (gameId) => {
+  return await Game.findById(gameId);
 };
