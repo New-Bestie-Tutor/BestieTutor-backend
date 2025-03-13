@@ -13,6 +13,7 @@ const MafiaSchema = new mongoose.Schema({
   status: { type: String, default: "waiting" }, // 게임 진행 상태
   day: { type: Number, default: 1 }, // 현재 날짜
   history: [{ type: String }], // 게임 진행 로그
+  voteResult: { type: String, default: null }, // 투표 결과
 }, { timestamps: true });
 
 const Mafia = mongoose.model("Mafia", MafiaSchema);
