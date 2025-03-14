@@ -16,7 +16,6 @@ exports.getGameState = async (req, res) => {
     const game = await mafiaService.getGameState(gameId);
     if (!game) return res.status(404).json({ message: "게임을 찾을 수 없음" });
     console.log("백엔드에서 찾은 게임 데이터:", game);
-    console.log("백엔드에서 보내는 players 데이터:", game.players);
 
     res.json(game);
   } catch (error) {
@@ -52,5 +51,45 @@ exports.decision = async (req, res) => {
   } catch (error) {
     console.error('🚨 투표 처리 중 오류 발생:', error);
     res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.mafiaAction = async (req, res) => {
+  const { gameId, mafiaTarget } = req.body;
+  try {
+    await mafiaService.mafiaAction(gameId, mafiaTarget);
+    res.json({ message: `${mafiaTarget}을(를) 공격 대상으로 설정했습니다.` });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.policeAction = async (req, res) => {
+  const { gameId, policeTarget } = req.body;
+  try {
+    const role = await mafiaService.policeAction(gameId, policeTarget);
+    res.json({ message: `경찰이 ${policeTarget}을 조사한 결과: ${role}` });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.doctorAction = async (req, res) => {
+  const { gameId, doctorTarget } = req.body;
+  try {
+    await mafiaService.doctorAction(gameId, doctorTarget);
+    res.json({ message: `${doctorTarget}을(를) 보호 대상으로 설정했습니다.` });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.processNightActions = async (req, res) => {
+  const { gameId } = req.body;
+  try {
+    const result = await mafiaService.processNightActions(gameId);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 };
