@@ -18,8 +18,6 @@ exports.getGameState = async (gameId) => {
 };
 
 exports.vote = async (gameId, selectedPlayer) => {
-  console.log("🔍 handleVote 실행:", { gameId, selectedPlayer });
-
   if (!gameId) throw new Error("gameId가 제공되지 않았습니다.");
   if (!selectedPlayer) throw new Error("selectedPlayer가 제공되지 않았습니다.");
 
@@ -29,15 +27,15 @@ exports.vote = async (gameId, selectedPlayer) => {
   game.voteResult = selectedPlayer;
   await game.save();
 
-  // 🔍 저장된 게임 정보 확인
+  // 저장된 게임 정보 확인
   const updatedGame = await Mafia.findById(gameId);
-  console.log("✅ 저장된 게임 상태:", updatedGame);
+  //console.log("저장된 게임 상태:", updatedGame);
 
   return `${selectedPlayer}가 최다 득표자로 선정되었습니다.`;
 };
 
 exports.decision = async (gameId, decision) => {
-  console.log("🔍 decision 실행:", { gameId, decision });
+  console.log("decision 실행:", { gameId, decision });
 
   const game = await Mafia.findById(gameId);
   if (!game) throw new Error("게임을 찾을 수 없습니다.");
@@ -51,19 +49,16 @@ exports.decision = async (gameId, decision) => {
       throw new Error(`선택된 플레이어(${votedPlayer})를 찾을 수 없습니다.`);
   }
 
-  console.log(`🛠️ 처형 대상: ${game.players[playerIndex].name}, 현재 생존 여부: ${game.players[playerIndex].isAlive}`);
+  console.log(`처형 대상: ${game.players[playerIndex].name}, 현재 생존 여부: ${game.players[playerIndex].isAlive}`);
 
   if (decision === "execute") {
-      game.players[playerIndex].isAlive = false; // ✅ 플레이어 사망 처리
-      console.log(`🔴 ${game.players[playerIndex].name} 처형 완료!`); // ✅ 로그 추가
+      game.players[playerIndex].isAlive = false; // 플레이어 사망 처리
+      console.log(`${game.players[playerIndex].name} 처형 완료!`); // 로그 추가
   } else {
-      console.log(`🟢 ${game.players[playerIndex].name}가 살아남았습니다.`);
+      console.log(`${game.players[playerIndex].name}가 살아남았습니다.`);
   }
 
-  await game.save(); // ✅ 변경 사항 저장
-
-  // ✅ 저장된 데이터 확인
-  const updatedGame = await Mafia.findById(gameId);
+  await game.save();
 
   return decision === "execute"
       ? `${votedPlayer}가 처형되었습니다.`
@@ -111,7 +106,7 @@ exports.autoNightActions = async (gameId) => {
 
   console.log(`AI 선택: 마피아 ${mafiaTarget}, 경찰 ${policeTarget}, 의사 ${doctorTarget}`);
 
-  // ✅ 기존 사용자가 선택한 값이 있으면 AI 값 덮어쓰지 않음
+  // 기존 사용자가 선택한 값이 있으면 AI 값 덮어쓰지 않음
   await Mafia.findByIdAndUpdate(gameId, { 
     mafiaTarget: game.mafiaTarget || mafiaTarget,
     policeTarget: game.policeTarget || policeTarget,
@@ -130,29 +125,29 @@ exports.processNightActions = async (gameId) => {
   let finalPoliceTarget = game.policeTarget;
   let finalDoctorTarget = game.doctorTarget;
 
-  // ✅ AI 자동 선택 실행 (선택되지 않은 경우만)
+  // AI 자동 선택 실행 (선택되지 않은 경우만)
   const autoActions = await exports.autoNightActions(gameId);
   finalMafiaTarget = finalMafiaTarget || autoActions.mafiaTarget;
   finalPoliceTarget = finalPoliceTarget || autoActions.policeTarget;
   finalDoctorTarget = finalDoctorTarget || autoActions.doctorTarget;
 
-  console.log(`🔹 확정된 선택 - 마피아: ${finalMafiaTarget}, 경찰: ${finalPoliceTarget}, 의사: ${finalDoctorTarget}`);
+  console.log(`확정된 선택 - 마피아: ${finalMafiaTarget}, 경찰: ${finalPoliceTarget}, 의사: ${finalDoctorTarget}`);
 
-  // 🔹 경찰 조사 결과
+  // 경찰 조사 결과
   let policeResult = null;
   if (finalPoliceTarget) {
     const target = updatedPlayers.find(p => p.name === finalPoliceTarget);
     policeResult = target?.role || "알 수 없음";
   }
 
-  // 🔹 마피아가 공격하고 의사가 보호하지 않으면 죽음
+  // 마피아가 공격하고 의사가 보호하지 않으면 죽음
   if (finalMafiaTarget && finalMafiaTarget !== finalDoctorTarget) {
     updatedPlayers = updatedPlayers.map(player =>
       player.name === finalMafiaTarget ? { ...player, isAlive: false } : player
     );
   }
 
-  // ✅ 게임 상태 업데이트
+  // 게임 상태 업데이트
   await Mafia.findByIdAndUpdate(gameId, {
     players: updatedPlayers,
     mafiaTarget: null, // 다음 밤을 위해 초기화

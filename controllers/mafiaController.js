@@ -27,8 +27,8 @@ exports.vote = async (req, res) => {
   try {
     const { gameId, selectedPlayer } = req.body;
 
-    // 🔍 요청 데이터 확인
-    console.log("🔹 Received vote request:", { gameId, selectedPlayer });
+    // 요청 데이터 확인
+    console.log("Received vote request:", { gameId, selectedPlayer });
 
     if (!gameId || !selectedPlayer) {
       return res.status(400).json({ success: false, message: "gameId 또는 selectedPlayer가 없습니다." });
@@ -37,7 +37,7 @@ exports.vote = async (req, res) => {
     const result = await mafiaService.vote(gameId, selectedPlayer);
     res.json({ success: true, message: result });
   } catch (error) {
-    console.error("❌ Vote error:", error);
+    console.error("Vote error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -45,11 +45,10 @@ exports.vote = async (req, res) => {
 exports.decision = async (req, res) => {
   try {
     const { gameId, decision } = req.body;
-    console.log(`📩 API 요청 수신: decision=${decision}, gameId=${gameId}`);
     const result = await mafiaService.decision(gameId, decision);
     res.json({ success: true, message: result });
   } catch (error) {
-    console.error('🚨 투표 처리 중 오류 발생:', error);
+    console.error('투표 처리 중 오류 발생:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
