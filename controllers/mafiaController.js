@@ -15,7 +15,7 @@ exports.getGameState = async (req, res) => {
     const { gameId } = req.params;
     const game = await mafiaService.getGameState(gameId);
     if (!game) return res.status(404).json({ message: "게임을 찾을 수 없음" });
-    console.log("백엔드에서 찾은 게임 데이터:", game);
+    //console.log("백엔드에서 찾은 게임 데이터:", game);
 
     res.json(game);
   } catch (error) {
@@ -90,5 +90,37 @@ exports.processNightActions = async (req, res) => {
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+};
+
+// 🔹 AI가 현재 게임 상황을 설명하는 함수
+exports.aiNarration = async (req, res) => {
+  try {
+    const { gameId } = req.body;
+    const game = await mafiaService.getGameState(gameId);
+    if (!game) return res.status(404).json({ message: "게임을 찾을 수 없음" });
+
+    // 현재 상황에 맞는 AI 메시지 생성
+    const narration = await mafiaService.aiNarration(game);
+
+    res.json({ message: narration });
+  } catch (error) {
+    res.status(500).json({ message: "서버 오류", error: error.message });
+  }
+};
+
+// 🔹 플레이어의 응답을 분석하고 반응하는 함수
+exports.playerResponse = async (req, res) => {
+  try {
+    const { gameId, playerMessage } = req.body;
+    const game = await mafiaService.getGameState(gameId);
+    if (!game) return res.status(404).json({ message: "게임을 찾을 수 없음" });
+
+    // 플레이어 메시지를 AI에게 전달하여 반응 생성
+    const aiResponse = await mafiaService.playerResponse(game, playerMessage);
+
+    res.json({ message: aiResponse });
+  } catch (error) {
+    res.status(500).json({ message: "서버 오류", error: error.message });
   }
 };

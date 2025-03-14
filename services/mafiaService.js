@@ -1,4 +1,12 @@
+const OpenAI = require("openai");
+const axios = require("axios");
 const Mafia = require("../models/Mafia");
+
+require("dotenv").config();
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 exports.setupGame = async (mafiaCount, roles, players) => {
   const newGame = new Mafia({
@@ -44,25 +52,25 @@ exports.decision = async (gameId, decision) => {
 
   const votedPlayer = game.voteResult;
   const playerIndex = game.players.findIndex(player => player.name === votedPlayer);
-  
+
   if (playerIndex === -1) {
-      throw new Error(`선택된 플레이어(${votedPlayer})를 찾을 수 없습니다.`);
+    throw new Error(`선택된 플레이어(${votedPlayer})를 찾을 수 없습니다.`);
   }
 
   console.log(`처형 대상: ${game.players[playerIndex].name}, 현재 생존 여부: ${game.players[playerIndex].isAlive}`);
 
   if (decision === "execute") {
-      game.players[playerIndex].isAlive = false; // 플레이어 사망 처리
-      console.log(`${game.players[playerIndex].name} 처형 완료!`); // 로그 추가
+    game.players[playerIndex].isAlive = false; // 플레이어 사망 처리
+    console.log(`${game.players[playerIndex].name} 처형 완료!`); // 로그 추가
   } else {
-      console.log(`${game.players[playerIndex].name}가 살아남았습니다.`);
+    console.log(`${game.players[playerIndex].name}가 살아남았습니다.`);
   }
 
   await game.save();
 
   return decision === "execute"
-      ? `${votedPlayer}가 처형되었습니다.`
-      : `${votedPlayer}가 살아남았습니다.`;
+    ? `${votedPlayer}가 처형되었습니다.`
+    : `${votedPlayer}가 살아남았습니다.`;
 };
 
 exports.mafiaAction = async (gameId, mafiaTarget) => {
@@ -84,9 +92,9 @@ exports.autoNightActions = async (gameId) => {
   let updatedPlayers = [...game.players];
 
   // 기존 사용자가 선택한 값 유지
-  let mafiaTarget = game.mafiaTarget; 
-  let policeTarget = game.policeTarget; 
-  let doctorTarget = game.doctorTarget; 
+  let mafiaTarget = game.mafiaTarget;
+  let policeTarget = game.policeTarget;
+  let doctorTarget = game.doctorTarget;
 
   // AI 자동 선택 (선택되지 않은 경우에만)
   if (!mafiaTarget) {
@@ -107,7 +115,7 @@ exports.autoNightActions = async (gameId) => {
   console.log(`AI 선택: 마피아 ${mafiaTarget}, 경찰 ${policeTarget}, 의사 ${doctorTarget}`);
 
   // 기존 사용자가 선택한 값이 있으면 AI 값 덮어쓰지 않음
-  await Mafia.findByIdAndUpdate(gameId, { 
+  await Mafia.findByIdAndUpdate(gameId, {
     mafiaTarget: game.mafiaTarget || mafiaTarget,
     policeTarget: game.policeTarget || policeTarget,
     doctorTarget: game.doctorTarget || doctorTarget
@@ -156,4 +164,54 @@ exports.processNightActions = async (gameId) => {
   });
 
   return { message: "밤이 지나갔습니다", policeResult, mafiaTarget: finalMafiaTarget };
+};
+
+// 🔹 AI가 게임 상황을 설명하는 함수
+exports.aiNarration = async (game) => {
+  const prompt = `
+  당신은 마피아 게임의 사회자 AI입니다.
+  현재 게임 상황:
+  - 현재 날짜: ${game.day}일차
+  - 살아남은 플레이어: ${game.players.length}명
+  - 진행 상태: ${game.status}
+
+  플레이어들에게 오늘의 상황을 1~2 문장으로 설명해주세요.
+  `;
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "system", content: prompt }],
+      max_tokens: 150,
+    });
+
+    console.log("GPT API Response:", response);
+    console.log("GPT API Response Data:", response?.data);
+    return response.choices?.[0]?.message?.content || "AI 응답을 가져오지 못했습니다.";
+  } catch (error) {
+    console.error("GPT API 요청 실패:", error.response?.data || error.message);
+    throw new Error("AI 생성 실패: " + (error.response?.data?.error || error.message));
+  }
+};
+
+// 🔹 AI가 플레이어의 발언을 분석하고 반응하는 함수
+exports.playerResponse = async (game, playerMessage) => {
+  const prompt = `
+  당신은 마피아 게임의 사회자 AI입니다.
+  플레이어가 "${playerMessage}"라고 말했습니다.
+
+  현재 게임 상태:
+  - 현재 날짜: ${game.day}일차
+  - 살아남은 플레이어: ${game.players.length}명
+  - 진행 상태: ${game.status}
+
+  이 발언에 대해 논리적인 반응을 1~2 문장으로 생성해주세요.
+  `;
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{ role: "system", content: prompt }],
+    max_tokens: 150,
+  });
+
+  return response.data.choices[0].message.content;
 };

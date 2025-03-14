@@ -23,4 +23,9 @@ router.post("/game/doctor", mafiaController.doctorAction);
 
 router.post("/game/process", mafiaController.processNightActions);
 
+// AI 행동
+router.post("/game/aiNarration", mafiaController.aiNarration);
+
+router.post("/game/playerResponse", mafiaController.playerResponse);
+
 module.exports = router;
