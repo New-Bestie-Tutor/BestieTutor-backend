@@ -35,10 +35,6 @@ exports.vote = async (gameId, selectedPlayer) => {
   game.voteResult = selectedPlayer;
   await game.save();
 
-  // 저장된 게임 정보 확인
-  const updatedGame = await Mafia.findById(gameId);
-  //console.log("저장된 게임 상태:", updatedGame);
-
   return `${selectedPlayer}가 최다 득표자로 선정되었습니다.`;
 };
 
@@ -71,6 +67,37 @@ exports.decision = async (gameId, decision) => {
   return decision === "execute"
     ? `${votedPlayer}가 처형되었습니다.`
     : `${votedPlayer}가 살아남았습니다.`;
+};
+
+exports.nextPhase = async (gameId) => {
+  const game = await Mafia.findById(gameId);
+  if (!game) throw new Error("게임을 찾을 수 없음");
+
+  if (game.status === "waiting") {
+    game.status = "day";
+  } else if (game.status === "day") {
+    game.status = "night";
+  } else if (game.status === "night") {
+    // 밤 능력 결과 적용 후 낮으로 전환
+    await exports.processNightActions(gameId);
+    game.status = "day";
+    game.day += 1;
+  }
+
+  // 게임 종료 체크
+  const mafiaCount = game.players.filter(p => p.role === "Mafia" && p.isAlive).length;
+  const citizenCount = game.players.filter(p => p.role !== "Mafia" && p.isAlive).length;
+
+  if (mafiaCount === 0) {
+    game.status = "ended";
+    game.history.push("시민 팀이 승리했습니다!");
+  } else if (mafiaCount >= citizenCount) {
+    game.status = "ended";
+    game.history.push("마피아 팀이 승리했습니다!");
+  }
+
+  await game.save();
+  return game;
 };
 
 exports.mafiaAction = async (gameId, mafiaTarget) => {
@@ -166,17 +193,30 @@ exports.processNightActions = async (gameId) => {
   return { message: "밤이 지나갔습니다", policeResult, mafiaTarget: finalMafiaTarget };
 };
 
+const aiRoles = [
+  { role: "Mafia", description: "조용히 시민을 제거하려는 마피아" },
+  { role: "Police", description: "마피아를 찾으려는 경찰" },
+  { role: "Doctor", description: "플레이어를 보호하는 의사" },
+  { role: "Citizen1", description: "평범한 시민 1" },
+  { role: "Citizen2", description: "평범한 시민 2" },
+  { role: "Citizen3", description: "평범한 시민 3" },
+];
+
 // 🔹 AI가 게임 상황을 설명하는 함수
 exports.aiNarration = async (game) => {
+  const updatedGame = await Mafia.findById(game._id);
   const prompt = `
   당신은 마피아 게임의 사회자 AI입니다.
   현재 게임 상황:
-  - 현재 날짜: ${game.day}일차
-  - 살아남은 플레이어: ${game.players.length}명
-  - 진행 상태: ${game.status}
+  - 현재 날짜: ${updatedGame.day}일차
+  - 살아남은 플레이어: ${updatedGame.players.length}명
+  - 진행 상태: ${updatedGame.status}
 
   플레이어들에게 오늘의 상황을 1~2 문장으로 설명해주세요.
   `;
+
+  console.log(`[aiNarration] GPT 요청 프롬프트:`, prompt);
+
   try {
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -184,34 +224,52 @@ exports.aiNarration = async (game) => {
       max_tokens: 150,
     });
 
-    console.log("GPT API Response:", response);
-    console.log("GPT API Response Data:", response?.data);
+    console.log(`[aiNarration] GPT API 응답:`, response);
+    console.log(`[aiNarration] GPT 생성된 메시지:`, response.choices?.[0]?.message?.content);
+
     return response.choices?.[0]?.message?.content || "AI 응답을 가져오지 못했습니다.";
   } catch (error) {
-    console.error("GPT API 요청 실패:", error.response?.data || error.message);
+    console.error(`[aiNarration] AI 생성 실패:`, error.response?.data?.error || error.message);
     throw new Error("AI 생성 실패: " + (error.response?.data?.error || error.message));
   }
 };
 
 // 🔹 AI가 플레이어의 발언을 분석하고 반응하는 함수
 exports.playerResponse = async (game, playerMessage) => {
-  const prompt = `
-  당신은 마피아 게임의 사회자 AI입니다.
-  플레이어가 "${playerMessage}"라고 말했습니다.
+  console.log(`[playerResponse] AI 역할 수:`, aiRoles.length);
+  
+  const aiResponses = await Promise.all(
+    aiRoles.map(async (ai) => {
+      const prompt = `
+      당신은 ${ai.role}입니다. (${ai.description})
+      플레이어가 "${playerMessage}"라고 말했습니다.
 
-  현재 게임 상태:
-  - 현재 날짜: ${game.day}일차
-  - 살아남은 플레이어: ${game.players.length}명
-  - 진행 상태: ${game.status}
+      현재 게임 상태:
+      - 현재 날짜: ${game.day}일차
+      - 살아남은 플레이어: ${game.players.length}명
+      - 진행 상태: ${game.status}
 
-  이 발언에 대해 논리적인 반응을 1~2 문장으로 생성해주세요.
-  `;
+      이 발언에 대해 논리적인 반응을 1~2 문장으로 생성해주세요.
+      `;
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [{ role: "system", content: prompt }],
-    max_tokens: 150,
-  });
+      try {
+        const response = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [{ role: "system", content: prompt }],
+          max_tokens: 150,
+        });
 
-  return response.data.choices[0].message.content;
+        return {
+          role: ai.role,
+          message: response.choices?.[0]?.message?.content || "응답 없음",
+        };
+      } catch (error) {
+        console.error(`[playerResponse] AI 응답 실패 (${ai.role}):`, error);
+        return { role: ai.role, message: "AI 응답 실패" };
+      }
+    })
+  );
+
+  console.log(`[playerResponse] 최종 AI 응답:`, aiResponses);
+  return aiResponses;
 };

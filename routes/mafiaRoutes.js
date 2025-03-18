@@ -8,6 +8,9 @@ router.post("/game/setup", mafiaController.setupGame);
 // 특정 게임 상태 조회
 router.get("/game/:gameId", mafiaController.getGameState);
 
+// 낮/밤 변경
+router.post("/game/nextPhase", mafiaController.nextPhase);
+
 // 투표
 router.post("/game/vote", mafiaController.vote);
 

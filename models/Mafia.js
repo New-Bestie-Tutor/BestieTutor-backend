@@ -10,10 +10,14 @@ const MafiaSchema = new mongoose.Schema({
       isAlive: Boolean,
     },
   ],
-  status: { type: String, default: "waiting" }, // 게임 진행 상태
+  phase: { type: String, default: "day" }, // 게임 진행 상태
   day: { type: Number, default: 1 }, // 현재 날짜
+  isGameOver: { type: Boolean, default: false }, // 게임 종료 여부
+  winner: { type: String, default: null }, // 승리한 팀
+
   history: [{ type: String }], // 게임 진행 로그
-  voteResult: { type: String, default: null }, // 투표 결과
+  statusHistory: [{ day: Number, phase: String, timestamp: Date }], // 상태 변경 기록
+  voteResult: { type: String, target: String }, // 투표 결과
 
   // 개별 역할이 선택한 대상 저장
   mafiaTarget: { type: String, default: null },
