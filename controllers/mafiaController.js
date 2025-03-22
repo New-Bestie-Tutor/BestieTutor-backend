@@ -26,7 +26,17 @@ exports.nextPhase = async (req, res) => {
   try {
     const { gameId } = req.body;
     const game = await mafiaService.nextPhase(gameId);
-    res.json({ message: "다음 단계로 진행됨", status: game.status, history: game.history });
+
+    console.log("🔍 서버에서 반환된 game 객체:", game);
+
+    res.json({
+      message: "다음 단계로 진행됨",
+      status: game.phase,
+      history: game.history,
+      players: game.players,
+      gameOver: game.gameOver,
+      winner: game.winner,
+    });
   } catch (error) {
     res.status(500).json({ message: "서버 오류", error: error.message });
   }
@@ -144,3 +154,4 @@ exports.playerResponse = async (req, res) => {
     res.status(500).json({ message: "서버 오류", error: error.message });
   }
 };
+
