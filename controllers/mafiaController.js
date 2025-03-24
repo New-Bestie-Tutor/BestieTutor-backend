@@ -1,4 +1,7 @@
 const mafiaService = require("../services/mafiaService");
+const MafiaConversation = require("../models/MafiaConversation");
+const MafiaMessage = require("../models/MafiaMessage");
+const Mafia = require("../models/Mafia");
 
 exports.setupGame = async (req, res) => {
   try {
@@ -115,20 +118,14 @@ exports.processNightActions = async (req, res) => {
 // 🔹 AI가 현재 게임 상황을 설명하는 함수
 exports.aiNarration = async (req, res) => {
   try {
+    console.log(`[aiNarration] 요청 받은 데이터:`, req.body);
     const { gameId } = req.body;
-    console.log(`[aiNarration] 게임 ID: ${gameId}`);
-
-    const game = await mafiaService.getGameState(gameId);
+    const game = await Mafia.findById(gameId);
     if (!game) {
-      console.warn(`[aiNarration] 게임을 찾을 수 없음: ${gameId}`);
+      console.log(`[aiNarration] 게임을 찾을 수 없음: ${gameId}`);
       return res.status(404).json({ message: "게임을 찾을 수 없음" });
     }
-
-    console.log(`[aiNarration] 게임 상태:`, game);
-
     const narration = await mafiaService.aiNarration(game);
-    console.log(`[aiNarration] AI 응답:`, narration);
-
     res.json({ message: narration });
   } catch (error) {
     console.error(`[aiNarration] 서버 오류:`, error);
@@ -154,4 +151,3 @@ exports.playerResponse = async (req, res) => {
     res.status(500).json({ message: "서버 오류", error: error.message });
   }
 };
-
