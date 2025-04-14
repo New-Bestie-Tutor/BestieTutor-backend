@@ -2,22 +2,17 @@ const express = require('express');
 const router = express.Router();
 const conversationController = require('../controllers/conversationController');
 
-router.post('/getResponse', conversationController.getResponse);
+router.post('/start', conversationController.startConversation); 
+router.post('/:converseId/message', conversationController.sendUserMessage);
+router.post('/:converseId/reply', conversationController.getAssistantReply);
 
-router.post('/initialize', conversationController.initializeConversation);
+router.get('/:email/history', conversationController.getUserConversations);
+router.get('/:converseId', conversationController.getConversationDetail);
 
-router.post('/addUserMessage', conversationController.addUserMessage);
+router.put('/:converseId/end', conversationController.markConversationEnded);
 
-router.get('/getConversationHistory/:email', conversationController.getConversationHistory);
-
-router.get('/getConversationById/:converse_id', conversationController.getConversationById);
-
-router.put('/updateEndTime', conversationController.updateEndTime);
-
-router.get('/getAllLanguages', conversationController.getAllLanguages);
-
-router.put('/handleLanguageChange', conversationController.handleLanguageChange);
-
-router.get('/getRecentLanguage/:email', conversationController.getRecentLanguage);
+router.get('/languages/all', conversationController.getAllLanguages);
+router.get('/languages/recent/:email', conversationController.getRecentLanguage);
+router.put('/languages/change', conversationController.changeUserLanguage);
 
 module.exports = router;
