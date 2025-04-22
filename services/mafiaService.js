@@ -125,108 +125,78 @@ exports.doctorAction = async (gameId, doctorTarget) => {
 
 exports.autoNightActions = async (gameId) => {
   const game = await Mafia.findById(gameId);
-  let updatedPlayers = [...game.players];
+  const players = game.players;
 
-  // 기존 사용자가 선택한 값 유지
-  let mafiaTarget = game.mafiaTarget;
-  let policeTarget = game.policeTarget;
-  let doctorTarget = game.doctorTarget;
-
-  // AI 자동 선택 (선택되지 않은 경우에만)
-  if (!mafiaTarget) {
-    const aliveCitizens = updatedPlayers.filter(p => p.isAlive && p.role !== "Mafia");
-    mafiaTarget = aliveCitizens.length > 0 ? aliveCitizens[Math.floor(Math.random() * aliveCitizens.length)].name : null;
-  }
-
-  if (!policeTarget) {
-    const alivePlayers = updatedPlayers.filter(p => p.isAlive && p.role !== "Police");
-    policeTarget = alivePlayers.length > 0 ? alivePlayers[Math.floor(Math.random() * alivePlayers.length)].name : null;
-  }
-
-  if (!doctorTarget) {
-    const alivePlayers = updatedPlayers.filter(p => p.isAlive);
-    doctorTarget = alivePlayers.length > 0 ? alivePlayers[Math.floor(Math.random() * alivePlayers.length)].name : null;
-  }
-
-  console.log(`AI 선택: 마피아 ${mafiaTarget}, 경찰 ${policeTarget}, 의사 ${doctorTarget}`);
-
-  // 기존 사용자가 선택한 값이 있으면 AI 값 덮어쓰지 않음
-  await Mafia.findByIdAndUpdate(gameId, {
-    mafiaTarget: game.mafiaTarget || mafiaTarget,
-    policeTarget: game.policeTarget || policeTarget,
-    doctorTarget: game.doctorTarget || doctorTarget
-  });
-
-  console.log(`AI 선택 결과 - 마피아: ${mafiaTarget}, 경찰: ${policeTarget}, 의사: ${doctorTarget}`);
-  const updatedGame = await Mafia.findById(gameId);
-  return {
-    mafiaTarget: updatedGame.mafiaTarget,
-    policeTarget: updatedGame.policeTarget,
-    doctorTarget: updatedGame.doctorTarget
+  const getRandomTarget = (filterFn) => {
+    const options = players.filter(filterFn);
+    return options.length > 0 ? options[Math.floor(Math.random() * options.length)].name : null;
   };
+
+  const mafiaTarget = getRandomTarget(p => p.isAlive && p.role !== "Mafia");
+  const policeTarget = getRandomTarget(p => p.isAlive && p.role !== "Police");
+  const doctorTarget = getRandomTarget(p => p.isAlive);
+
+  return { mafiaTarget, policeTarget, doctorTarget };
 };
 
 exports.processNightActions = async (gameId) => {
   const game = await Mafia.findById(gameId);
   let updatedPlayers = [...game.players];
 
-  // 기존 사용자가 선택한 값 유지
-  let finalMafiaTarget = game.mafiaTarget;
-  let finalPoliceTarget = game.policeTarget;
-  let finalDoctorTarget = game.doctorTarget;
-
-  // AI 자동 선택 실행 (선택되지 않은 경우만)
+  let { mafiaTarget, policeTarget, doctorTarget } = game;
   const autoActions = await exports.autoNightActions(gameId);
-  finalMafiaTarget = finalMafiaTarget || autoActions.mafiaTarget;
-  finalPoliceTarget = finalPoliceTarget || autoActions.policeTarget;
-  finalDoctorTarget = finalDoctorTarget || autoActions.doctorTarget;
 
-  console.log(`확정된 선택 - 마피아: ${finalMafiaTarget}, 경찰: ${finalPoliceTarget}, 의사: ${finalDoctorTarget}`);
+  // AI만 있는 역할은 자동 선택값 적용
+  if (!mafiaTarget) mafiaTarget = autoActions.mafiaTarget;
+  if (!policeTarget) policeTarget = autoActions.policeTarget;
+  if (!doctorTarget) doctorTarget = autoActions.doctorTarget;
 
-  Mafia.mafiaTarget = finalMafiaTarget;
-  Mafia.policeTarget = finalPoliceTarget;
-  Mafia.doctorTarget = finalDoctorTarget;
+  // DB에 최종 선택값 업데이트
+  await Mafia.findByIdAndUpdate(gameId, {
+    mafiaTarget,
+    policeTarget,
+    doctorTarget
+  });
 
   // 경찰 조사 결과
   let policeResult = null;
-  if (finalPoliceTarget) {
-    const target = updatedPlayers.find(p => p.name === finalPoliceTarget);
+  if (policeTarget) {
+    const target = updatedPlayers.find(p => p.name === policeTarget);
     policeResult = target?.role || "알 수 없음";
   }
 
-  // 마피아 공격 처리 (디버깅용 로그 추가)
-  if (finalMafiaTarget) {
-    const targetPlayer = updatedPlayers.find(player => player.name === finalMafiaTarget);
-
+  // 마피아 공격 처리
+  if (mafiaTarget) {
+    const targetPlayer = updatedPlayers.find(p => p.name === mafiaTarget);
     if (!targetPlayer) {
-      console.log(`Error: 마피아 타겟(${finalMafiaTarget})을 찾을 수 없음`);
-    } else if (finalMafiaTarget === finalDoctorTarget) {
-      console.log(`마피아가 ${finalMafiaTarget}을 공격했지만, 의사의 보호로 살아남았습니다.`);
+      console.log(`[❌] 타겟 ${mafiaTarget}을 찾을 수 없습니다.`);
+    } else if (mafiaTarget === doctorTarget) {
+      console.log(`[🛡️] ${mafiaTarget}은 의사의 보호로 살아남았습니다.`);
     } else {
-      console.log(`마피아가 ${finalMafiaTarget}을 공격하여 사망 처리합니다.`);
-
-      updatedPlayers = updatedPlayers.map(player =>
-        player.name === finalMafiaTarget ? { ...player, isAlive: false } : player
+      console.log(`[☠️] ${mafiaTarget}은 마피아에게 살해당했습니다.`);
+      updatedPlayers = updatedPlayers.map(p =>
+        p.name === mafiaTarget ? { ...p, isAlive: false } : p
       );
-
-      // 변경된 상태 확인
-      console.log("업데이트된 플레이어 리스트:", updatedPlayers);
     }
   }
 
-  // 게임 상태 업데이트
-  await Mafia.findByIdAndUpdate(
-    gameId,
-    { 
-      $set: { players: updatedPlayers },
-      mafiaTarget: null,
-      doctorTarget: null,
-      policeTarget: null
-    },
-    { new: true } // 업데이트된 문서 반환
-  );
+  // 최종 상태 반영
+  await Mafia.findByIdAndUpdate(gameId, {
+    players: updatedPlayers,
+    mafiaTarget: null,
+    policeTarget: null,
+    doctorTarget: null
+  });
 
-  return { message: "밤이 지나갔습니다", policeResult, mafiaTarget: finalMafiaTarget };
+  return {
+    message: mafiaTarget === doctorTarget
+      ? `마피아가 ${mafiaTarget}을 공격했지만 의사의 보호로 살아남았습니다.`
+      : mafiaTarget
+      ? `마피아가 ${mafiaTarget}을 공격했습니다.`
+      : `마피아는 이번 밤에 아무도 공격하지 않았습니다.`,
+    policeResult,
+    mafiaTarget
+  };
 };
 
 const aiRoles = [
