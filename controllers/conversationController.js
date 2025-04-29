@@ -45,6 +45,7 @@ exports.startConversation = async (req, res) => {
       message: '대화가 시작되었습니다.',
       gptResponse: initialText,
       conversationId,
+      threadId,
     });
   } catch {
     res.status(500).json({ message: '대화 시작에 실패했습니다.' });
@@ -54,9 +55,9 @@ exports.startConversation = async (req, res) => {
 exports.sendUserMessage = async (req, res) => {
   try {
     const { converseId } = req.params;
-    const { text, language } = req.body;
+    const { threadId, text, language } = req.body;
 
-    const { messageId } = await conversationService.saveUserMessage({ converseId, text });
+    const { messageId } = await conversationService.saveUserMessage({ converseId, threadId, text });
 
     await conversationService.generateFeedback({ messageId, userText: text, language });
 
@@ -69,10 +70,11 @@ exports.sendUserMessage = async (req, res) => {
 exports.getAssistantReply = async (req, res) => {
   try {
     const { converseId } = req.params;
-    const { characterName, language } = req.body;
+    const { threadId, characterName, language } = req.body;
 
     const { reply } = await conversationService.generateAssistantReply({
       converseId,
+      threadId,
       characterName,
       language,
     });
