@@ -32,7 +32,10 @@ exports.initializeConversationThread = async ({
   if (!character.assistant_id) {
     const assistant = await openai.beta.assistants.create({
       name: character.name,
-      instructions: `You are ${character.name}, a character with ${character.personality} personality. Speak in a ${character.tone} tone.`,
+      instructions: `You are acting as the character "${character.name}" with the following traits: 
+      Personality: ${character.personality}, Tone: ${character.tone}. 
+      Stay in character throughout the conversation. 
+      Respond in ${languageData.name}.`,
       model: 'gpt-4o-mini',
     });
     character.assistant_id = assistant.id;
@@ -79,10 +82,29 @@ exports.generateInitialAssistantReply = async ({
   if (!character || !character.assistant_id) {
     throw new Error('Character 또는 Assistant ID가 없습니다.');
   }
+  const languageData = await Language.findOne({ code: language });
+  
+  let detail = '';
+  if (!freeTopic) {
+    const topic = await Topic.findOne({ mainTopic });
+    const diffObj = topic?.subTopics
+      ?.find(st => st.name === subTopic)
+      ?.difficulties
+      ?.find(d => d.difficulty === difficulty);
+  
+    if (!diffObj) throw new Error('유효하지 않은 주제 조합입니다');
+    detail = diffObj.detail;
+  }
 
   const systemMessage = freeTopic
-    ? `Let's talk about "${freeTopic}".`
-    : `Let's begin a conversation on "${subTopic}" in the context of "${mainTopic}" (${difficulty} level).`;
+    ? `The conversation is about "${freeTopic}". 
+    Provide short and concise responses of 1-2 sentences, ensuring that each sentence ends with standard punctuation marks like ".", "?", or "!". 
+    Treat these punctuation marks as clear sentence boundaries and do not extend sentences unnecessarily.            
+    ${languageData.prompt}. Avoid using numbers, emojis, or other symbols, and ensure the responses feel like a natural, flowing conversation.`
+    : `The conversation is about: Topic: ${mainTopic}, Subtopic: ${subTopic}, Difficulty: ${difficulty}, Detail: ${detail}.              
+    Provide short and concise responses of 1-2 sentences, ensuring that each sentence ends with standard punctuation marks like ".", "?", or "!". 
+    Treat these punctuation marks as clear sentence boundaries and do not extend sentences unnecessarily.            
+    ${languageData.prompt}. Avoid using numbers, emojis, or other symbols, and ensure the responses feel like a natural, flowing conversation.`;
 
   await openai.beta.threads.messages.create(threadId, {
     role: 'user',
@@ -115,19 +137,31 @@ exports.generateInitialAssistantReply = async ({
     input_date: new Date(),
   });
 
-  return { initialText: reply };
+  return { initialText: reply, threadId };
 };
 
-exports.saveUserMessage = async ({ converseId, text }) => {
-  const message = new Message({
-    message_id: uuidv4(),
-    converse_id: converseId,
-    message: text,
-    message_type: 'USER',
-    input_date: new Date(),
-  });
-  await message.save();
-  return { messageId: message.message_id };
+exports.saveUserMessage = async ({ converseId, threadId, text }) => {
+  try {
+    await openai.beta.threads.messages.create(threadId, {
+      role: 'user',
+      content: text
+    });
+
+    const message = new Message({
+      message_id: uuidv4(),
+      converse_id: converseId,
+      message: text,
+      message_type: 'USER',
+      input_date: new Date(),
+    });
+    await message.save();
+
+    return { messageId: message.message_id };
+
+  } catch (err) {
+    console.error('🛑 saveUserMessage 실패:', err);
+    throw err;
+  }
 };
 
 exports.generateFeedback = async ({ messageId, userText, language }) => {
@@ -155,24 +189,36 @@ exports.generateFeedback = async ({ messageId, userText, language }) => {
   });
 };
 
-exports.generateAssistantReply = async ({ converseId, characterName, language }) => {
-  const conversation = await Conversation.findById(converseId);
+exports.generateAssistantReply = async ({ converseId, threadId, characterName, language }) => {
   const character = await Character.findOne({ name: characterName });
-  const lang = await Language.findOne({ code: language });
 
-  const run = await openai.beta.threads.runs.create(conversation.thread_id, {
+  const [lastRun] = (await openai.beta.threads.runs.list(threadId, { limit: 1 })).data;
+  if (lastRun && ['queued', 'in_progress', 'requires_action'].includes(lastRun.status)) {
+    throw new Error('🛑 이전 run이 아직 완료되지 않았습니다.');
+  }
+
+  const run = await openai.beta.threads.runs.create(threadId, {
     assistant_id: character.assistant_id,
+    additional_instructions: `${language} 언어로 1~2문장 응답`,
   });
 
   let status;
   do {
-    await new Promise((r) => setTimeout(r, 1000));
-    const result = await openai.beta.threads.runs.retrieve(conversation.thread_id, run.id);
+    await new Promise((r) => setTimeout(r, 500));
+    const result = await openai.beta.threads.runs.retrieve(threadId, run.id);
     status = result.status;
   } while (status !== 'completed');
 
-  const messages = await openai.beta.threads.messages.list(conversation.thread_id);
-  const reply = messages.data.filter(m => m.role === 'assistant').at(-1)?.content.find(c => c.type === 'text')?.text?.value || '';
+  const { data: [message] } = await openai.beta.threads.messages.list(threadId, {
+    run_id: run.id,
+    order: 'desc',
+    limit: 1
+  });
+
+  const reply = message.content?.[0]?.text?.value ?? '';
+  if (!reply) {
+    throw new Error('🛑 Assistant 응답이 비어 있습니다.');
+  }
 
   await Message.create({
     message_id: uuidv4(),
