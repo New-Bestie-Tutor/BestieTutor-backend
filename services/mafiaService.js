@@ -192,21 +192,12 @@ exports.processNightActions = async (gameId) => {
     message: mafiaTarget === doctorTarget
       ? `마피아가 ${mafiaTarget}을 공격했지만 의사의 보호로 살아남았습니다.`
       : mafiaTarget
-      ? `마피아가 ${mafiaTarget}을 공격했습니다.`
-      : `마피아는 이번 밤에 아무도 공격하지 않았습니다.`,
+        ? `마피아가 ${mafiaTarget}을 공격했습니다.`
+        : `마피아는 이번 밤에 아무도 공격하지 않았습니다.`,
     policeResult,
     mafiaTarget
   };
 };
-
-const aiRoles = [
-  { role: "Mafia", description: "조용히 시민을 제거하려는 마피아" },
-  { role: "Police", description: "마피아를 찾으려는 경찰" },
-  { role: "Doctor", description: "플레이어를 보호하는 의사" },
-  { role: "Citizen1", description: "평범한 시민 1" },
-  { role: "Citizen2", description: "평범한 시민 2" },
-  { role: "Citizen3", description: "평범한 시민 3" },
-];
 
 // 🔹 AI가 게임 상황을 설명하는 함수
 exports.aiNarration = async (game) => {
@@ -248,12 +239,15 @@ exports.aiNarration = async (game) => {
 exports.playerResponse = async (game, playerMessage) => {
   const messages = await MafiaMessage.find({ game_id: game._id }).sort({ input_date: 1 });
   const alivePlayers = game.players.filter(p => p.isAlive).length;
+
+  console.log("입력 메시지:", playerMessage);
+
   const chatHistory = messages.map(msg => ({
     role: msg.message_type === "USER" ? "user" : "assistant",
     content: msg.message
   }));
 
-  // 플레이어 발언 저장
+  // 🔹 플레이어 발언 저장
   const pMessage = new MafiaMessage({
     message_id: uuidv4(),
     game_id: game._id,
@@ -263,11 +257,42 @@ exports.playerResponse = async (game, playerMessage) => {
   });
   await pMessage.save();
 
-  // AI 응답 처리
+  // 🔹 실제 플레이어가 맡은 역할들 (예: "Player"라는 이름 기준)
+  const playerRoles = game.players
+    .filter(p => p.name === "Player")
+    .map(p => p.role.toUpperCase());
+
+  const allAiRoles = game.players
+    .filter(p => p.name !== "Player" && p.isAlive)
+    .map(p => ({
+      role: p.role.toUpperCase(),
+      name: p.name,
+      description: getRoleDescription(p.role.toUpperCase()),
+    }));
+
+  const allowDuplicateRoles = ['CITIZEN'];
+
+  const aiRoles = allAiRoles.filter(ai => {
+    if (allowDuplicateRoles.includes(ai.role)) return true;
+    return !playerRoles.includes(ai.role);
+  });
+
+  function getRoleDescription(role) {
+    switch (role) {
+      case "MAFIA": return "조용히 시민을 제거하려는 마피아";
+      case "POLICE": return "마피아를 찾으려는 경찰";
+      case "DOCTOR": return "플레이어를 보호하는 의사";
+      case "CITIZEN": return "평범한 시민";
+      default: return "기타 역할";
+    }
+  }
+
+  // 🔹 AI 응답 처리
   const aiResponses = await Promise.all(
     aiRoles.map(async (ai) => {
       const prompt = `
       당신은 ${ai.role}입니다. (${ai.description})
+      당신의 이름은 ${ai.name}입니다.
       플레이어가 "${playerMessage}"라고 말했습니다.
 
       현재 게임 상태:
@@ -287,22 +312,24 @@ exports.playerResponse = async (game, playerMessage) => {
 
         return {
           role: ai.role,
+          name: ai.name,
           message: response.choices?.[0]?.message?.content || "응답 없음",
         };
       } catch (error) {
-        console.error(`[playerResponse] AI 응답 실패 (${ai.role}):`, error);
-        return { role: ai.role, message: "AI 응답 실패" };
+        console.error(`[playerResponse] AI 응답 실패 (${ai.name}):`, error);
+        return { role: ai.name, message: "AI 응답 실패" };
       }
     })
   );
 
-  // AI 응답 저장
+  // 🔹 AI 응답 DB 저장
   const aiMessages = aiResponses.map(ai => ({
     message_id: uuidv4(),
     game_id: game._id,
     message: ai.message,
     message_type: "BOT",
-    role: ai.role.toUpperCase(),
+    role: ai.role,
+    name: ai.name,
     input_date: new Date(),
   }));
   await MafiaMessage.insertMany(aiMessages);
