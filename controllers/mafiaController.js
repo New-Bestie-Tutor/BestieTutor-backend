@@ -30,8 +30,6 @@ exports.nextPhase = async (req, res) => {
     const { gameId } = req.body;
     const game = await mafiaService.nextPhase(gameId);
 
-    console.log("🔍 서버에서 반환된 game 객체:", game);
-
     res.json({
       message: "다음 단계로 진행됨",
       status: game.phase,
@@ -48,9 +46,6 @@ exports.nextPhase = async (req, res) => {
 exports.vote = async (req, res) => {
   try {
     const { gameId, selectedPlayer } = req.body;
-
-    // 요청 데이터 확인
-    console.log("Received vote request:", { gameId, selectedPlayer });
 
     if (!gameId || !selectedPlayer) {
       return res.status(400).json({ success: false, message: "gameId 또는 selectedPlayer가 없습니다." });
@@ -118,11 +113,9 @@ exports.processNightActions = async (req, res) => {
 // 🔹 AI가 현재 게임 상황을 설명하는 함수
 exports.aiNarration = async (req, res) => {
   try {
-    console.log(`[aiNarration] 요청 받은 데이터:`, req.body);
     const { gameId } = req.body;
     const game = await Mafia.findById(gameId);
     if (!game) {
-      console.log(`[aiNarration] 게임을 찾을 수 없음: ${gameId}`);
       return res.status(404).json({ message: "게임을 찾을 수 없음" });
     }
     const narration = await mafiaService.aiNarration(game);

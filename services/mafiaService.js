@@ -42,8 +42,6 @@ exports.vote = async (gameId, selectedPlayer) => {
 };
 
 exports.decision = async (gameId, decision) => {
-  console.log("decision 실행:", { gameId, decision });
-
   const game = await Mafia.findById(gameId);
   if (!game) throw new Error("게임을 찾을 수 없습니다.");
 
@@ -56,13 +54,8 @@ exports.decision = async (gameId, decision) => {
     throw new Error(`선택된 플레이어(${votedPlayer})를 찾을 수 없습니다.`);
   }
 
-  console.log(`처형 대상: ${game.players[playerIndex].name}, 현재 생존 여부: ${game.players[playerIndex].isAlive}`);
-
   if (decision === "execute") {
     game.players[playerIndex].isAlive = false; // 플레이어 사망 처리
-    console.log(`${game.players[playerIndex].name} 처형 완료!`); // 로그 추가
-  } else {
-    console.log(`${game.players[playerIndex].name}가 살아남았습니다.`);
   }
 
   await game.save();
@@ -76,8 +69,6 @@ exports.nextPhase = async (gameId) => {
   const game = await Mafia.findById(gameId);
   if (!game) throw new Error("게임을 찾을 수 없음");
 
-  console.log("[Before] game.phase:", game.phase);
-
   if (game.phase === "waiting") {
     game.phase = "day";
   } else if (game.phase === "day") {
@@ -88,8 +79,6 @@ exports.nextPhase = async (gameId) => {
     game.phase = "day";
     game.day += 1;
   }
-
-  console.log("[After] game.phase:", game.phase);
 
   // 게임 종료 체크
   const mafiaCount = game.players.filter(p => p.role === "Mafia" && p.isAlive).length;
@@ -168,12 +157,9 @@ exports.processNightActions = async (gameId) => {
   // 마피아 공격 처리
   if (mafiaTarget) {
     const targetPlayer = updatedPlayers.find(p => p.name === mafiaTarget);
-    if (!targetPlayer) {
-      console.log(`[❌] 타겟 ${mafiaTarget}을 찾을 수 없습니다.`);
-    } else if (mafiaTarget === doctorTarget) {
-      console.log(`[🛡️] ${mafiaTarget}은 의사의 보호로 살아남았습니다.`);
-    } else {
-      console.log(`[☠️] ${mafiaTarget}은 마피아에게 살해당했습니다.`);
+    const isProtected = mafiaTarget === doctorTarget;
+
+    if (targetPlayer && !isProtected) {
       updatedPlayers = updatedPlayers.map(p =>
         p.name === mafiaTarget ? { ...p, isAlive: false } : p
       );
@@ -201,7 +187,6 @@ exports.processNightActions = async (gameId) => {
 
 // 🔹 AI가 게임 상황을 설명하는 함수
 exports.aiNarration = async (game) => {
-  console.log(`[aiNarration] 요청받은 game._id:`, game._id);
   const updatedGame = await Mafia.findById(game._id);
   if (!updatedGame) {
     throw new Error(`[aiNarration] gameId ${game._id}로 게임을 찾을 수 없습니다.`);
@@ -217,16 +202,12 @@ exports.aiNarration = async (game) => {
   플레이어들에게 오늘의 상황을 1~2 문장으로 설명해주세요.
   `;
 
-  console.log(`[aiNarration] GPT 요청 프롬프트:`, prompt);
-
   try {
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "system", content: prompt }],
       max_tokens: 150,
     });
-
-    console.log(`[aiNarration] GPT 생성된 메시지:`, response.choices?.[0]?.message?.content);
 
     return response.choices?.[0]?.message?.content || "AI 응답을 가져오지 못했습니다.";
   } catch (error) {
@@ -239,8 +220,6 @@ exports.aiNarration = async (game) => {
 exports.playerResponse = async (game, playerMessage) => {
   const messages = await MafiaMessage.find({ game_id: game._id }).sort({ input_date: 1 });
   const alivePlayers = game.players.filter(p => p.isAlive).length;
-
-  console.log("입력 메시지:", playerMessage);
 
   const chatHistory = messages.map(msg => ({
     role: msg.message_type === "USER" ? "user" : "assistant",
@@ -333,7 +312,5 @@ exports.playerResponse = async (game, playerMessage) => {
     input_date: new Date(),
   }));
   await MafiaMessage.insertMany(aiMessages);
-
-  console.log(`[playerResponse] 최종 AI 응답:`, aiResponses);
   return aiResponses;
 };
