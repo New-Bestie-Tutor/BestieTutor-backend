@@ -3,6 +3,8 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 const cookieParser = require("cookie-parser");
 const mongoose = require("mongoose");
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpec = require('./swagger/swaggerConfig');
 
 // 라우트 임포트
 const userRoutes = require("./routes/userRoutes");
@@ -74,6 +76,9 @@ app.use("/payment", paymentRoutes);
 
 // 마피아 게임 라우트
 app.use("/mafia", mafiaRoutes);
+
+// Swagger 연동
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // 서버 시작
 app.listen(port, () => {

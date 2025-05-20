@@ -212,7 +212,7 @@ exports.getUser = async (req, res) => {
 
 // 특정 사용자의 정보 반환
 exports.getUserInfo = async (req, res) => {
-  const token = req.cookies.token;
+  const token = req.headers.authorization?.split(' ')[1];
 
   if (!token) {
     return res.status(400).json({ message: "토큰이 없습니다." });
