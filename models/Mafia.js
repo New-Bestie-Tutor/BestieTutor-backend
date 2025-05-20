@@ -8,6 +8,7 @@ const MafiaSchema = new mongoose.Schema({
       name: String,
       role: String,
       isAlive: Boolean,
+      avatar: String,
     },
   ],
   phase: { type: String, default: "day" }, // 게임 진행 상태
