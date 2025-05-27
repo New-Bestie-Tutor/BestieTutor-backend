@@ -46,7 +46,22 @@ exports.initializeConversationThread = async ({
   const topicDescription = freeTopic
     ? freeTopic
     : `${mainTopic} - ${subTopic} - ${difficulty}`;
-  const description = freeTopic ? '자유 주제 대화' : `${mainTopic}-${subTopic}-${difficulty} 대화`;
+
+  let description;
+  if (freeTopic) {
+    description = "자유 주제 대화";
+  } else {
+    const topic = await Topic.findOne({ mainTopic });
+    if (!topic) { throw new Error('해당 mainTopic을 찾을 수 없습니다.')};
+
+    const sub = topic.subTopics.find(st => st.name === subTopic);
+    if (!sub) { throw new Error('해당 subTopic을 찾을 수 없습니다.')};
+
+    const diff = sub.difficulties.find(d => d.difficulty.trim() === difficulty.trim());
+    if (!diff) { throw new Error('해당 difficulty를 찾을 수 없습니다.')};
+
+    description = diff.description;
+  }
 
   const conversation = new Conversation({
     user_id: user._id,
@@ -62,7 +77,7 @@ exports.initializeConversationThread = async ({
   await conversation.save();
 
   return {
-    conversationId: conversation._id,
+    conversationId: conversation.converse_id,
     threadId: thread.id,
   };
 };
@@ -126,7 +141,7 @@ exports.generateInitialAssistantReply = async ({
   const reply = messages.data.filter(m => m.role === 'assistant').at(-1)?.content.find(c => c.type === 'text')?.text?.value || '';
 
   if (!reply) {
-    throw new Error('🛑 Assistant 응답이 비어 있습니다.');
+    throw new Error('Assistant 응답이 비어 있습니다.');
   }
 
   await Message.create({
@@ -159,7 +174,7 @@ exports.saveUserMessage = async ({ converseId, threadId, text }) => {
     return { messageId: message.message_id };
 
   } catch (err) {
-    console.error('🛑 saveUserMessage 실패:', err);
+    console.error('saveUserMessage 실패:', err);
     throw err;
   }
 };
@@ -194,7 +209,7 @@ exports.generateAssistantReply = async ({ converseId, threadId, characterName, l
 
   const [lastRun] = (await openai.beta.threads.runs.list(threadId, { limit: 1 })).data;
   if (lastRun && ['queued', 'in_progress', 'requires_action'].includes(lastRun.status)) {
-    throw new Error('🛑 이전 run이 아직 완료되지 않았습니다.');
+    throw new Error('이전 run이 아직 완료되지 않았습니다.');
   }
 
   const run = await openai.beta.threads.runs.create(threadId, {
@@ -217,7 +232,7 @@ exports.generateAssistantReply = async ({ converseId, threadId, characterName, l
 
   const reply = message.content?.[0]?.text?.value ?? '';
   if (!reply) {
-    throw new Error('🛑 Assistant 응답이 비어 있습니다.');
+    throw new Error('Assistant 응답이 비어 있습니다.');
   }
 
   await Message.create({
@@ -244,7 +259,7 @@ exports.getConversationWithMessages = async (converseId) => {
 };
 
 exports.updateConversationEndTime = async (converseId) => {
-  const conversation = await Conversation.findById(converseId);
+  const conversation = await Conversation.findOne({ converse_id: converseId });
   conversation.end_time = new Date();
   await conversation.save();
   return conversation;
