@@ -38,7 +38,6 @@ class FeedbackService {
   }
 
   async getFeedbackByMessageId(messageId) {
-    console.log("피드백 찾기 Received messageId:", messageId);
     if (!messageId) {
       throw new Error("messageId가 제공되지 않았습니다.");
     }
