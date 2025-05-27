@@ -46,7 +46,22 @@ exports.initializeConversationThread = async ({
   const topicDescription = freeTopic
     ? freeTopic
     : `${mainTopic} - ${subTopic} - ${difficulty}`;
-  const description = freeTopic ? '자유 주제 대화' : `${mainTopic}-${subTopic}-${difficulty} 대화`;
+
+  let description;
+  if (freeTopic) {
+    description = "자유 주제 대화";
+  } else {
+    const topic = await Topic.findOne({ mainTopic });
+    if (!topic) { throw new Error('해당 mainTopic을 찾을 수 없습니다.')};
+
+    const sub = topic.subTopics.find(st => st.name === subTopic);
+    if (!sub) { throw new Error('해당 subTopic을 찾을 수 없습니다.')};
+
+    const diff = sub.difficulties.find(d => d.difficulty.trim() === difficulty.trim());
+    if (!diff) { throw new Error('해당 difficulty를 찾을 수 없습니다.')};
+
+    description = diff.description;
+  }
 
   const conversation = new Conversation({
     user_id: user._id,
